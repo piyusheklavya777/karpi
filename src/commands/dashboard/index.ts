@@ -214,7 +214,7 @@ function displayDashboard(profile: any): void {
 ╚════════════════════════════════════════════════════════════╝
 `;
 
-  console.log(styled.box(header) + styled.box(welcome)); // + styled.box(footer));
+  console.log(styled.box(header) + styled.box(welcome) + styled.box(footer)); // + styled.box(footer));
 }
 
 function displayStats(profile: any): void {

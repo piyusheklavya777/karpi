@@ -12,6 +12,7 @@
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
     "build:binary": "bun build src/index.ts --compile --outfile dist/karpi",
+    "bump:version": "bun scripts/bump-version.ts",
     "lint": "eslint src --ext .ts,.tsx",
     "test": "bun test",
     "type-check": "tsc --noEmit"
@@ -20,8 +21,7 @@
     "cli",
     "productivity",
     "developer-tools",
-    "terminal",
-    "task-management"
+    "terminal"
   ],
   "author": "",
   "license": "MIT",
