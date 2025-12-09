@@ -19,10 +19,21 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v1
         with:
-          bun-version: "1.0.0"
+          bun-version: "latest"
 
-      - name: Install dependencies
-        run: bun install
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies (npm)
+        run: npm install
+
+      - name: Rebuild keytar native module
+        run: npm rebuild keytar --build-from-source
+
+      - name: Verify keytar build output
+        run: ls -lah node_modules/keytar/build/Release || (echo 'keytar build missing' && exit 1)
 
       - name: Build binary
         run: bun run build:binary
@@ -72,9 +83,10 @@ jobs:
 
           git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/piyusheklavya777/homebrew-tap.git"
           cd homebrew-tap
-          sed -i "s|^  url \".*\"|  url \"https://github.com/piyusheklavya777/karpi/releases/download/v${VERSION}/karpi-v${VERSION}.tar.gz\"|" karpi.rb
-          sed -i "s|^  sha256 \".*\"|  sha256 \"${SHA}\"|" karpi.rb
-          sed -i "s|^  version \".*\"|  version \"${VERSION}\"|" karpi.rb
+          sed -i.bak "s|^  url \".*\"|  url \"https://github.com/piyusheklavya777/karpi/releases/download/v${VERSION}/karpi-v${VERSION}.tar.gz\"|" karpi.rb
+          sed -i.bak "s|^  sha256 \".*\"|  sha256 \"${SHA}\"|" karpi.rb
+          sed -i.bak "s|^  version \".*\"|  version \"${VERSION}\"|" karpi.rb
+          rm -f karpi.rb.bak
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -am "chore: bump karpi to v${VERSION}" || echo "No changes to commit"
