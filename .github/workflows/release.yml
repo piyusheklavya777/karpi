@@ -59,13 +59,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update homebrew-tap formula
-        if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
           SHA: ${{ steps.package.outputs.sha }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         shell: bash
         run: |
+          if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
+            echo "HOMEBREW_TAP_TOKEN not set; skipping Homebrew tap update."
+            exit 0
+          fi
+
           git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/piyusheklavya777/homebrew-tap.git"
           cd homebrew-tap
           sed -i "s|^  url \".*\"|  url \"https://github.com/piyusheklavya777/karpi/releases/download/v${VERSION}/karpi-v${VERSION}.tar.gz\"|" karpi.rb
