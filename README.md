@@ -8,6 +8,7 @@ A modern, beautiful CLI application for developers built with TypeScript, Bun, a
 
 - 🔐 **Secure Authentication** - Password hashing with bcrypt and secure keychain storage
 - 👥 **Multiple Profiles** - Support for unlimited user profiles
+- 🖥️ **Remote Servers & Tunnels** - Manage SSH access to EC2 instances and tunnels to services like RDS and Redis
 - 🎨 **Beautiful UI** - Modern CLI interface with custom color scheme (bottle green, bright blue, black)
 - ⚡ **Fast** - Built with Bun for lightning-fast performance
 - 🔒 **Secure** - JWT-based sessions with automatic expiration
@@ -95,12 +96,7 @@ karpi --help
 Once logged in, the dashboard provides:
 
 - **View Stats** - See your account statistics
-- **Quick Actions** - Access productivity features (Coming Soon)
-  - Task Manager
-  - Project Tracker
-  - Notes
-  - Time Tracker
-  - Code Snippets
+- **Quick Actions** - Quickly rerun recent SSH connections and tunnels (for example to EC2, RDS, or Redis)
 - **Profile Settings** - View and manage your profile
 - **Logout** - End your session
 
@@ -174,13 +170,7 @@ Passwords are stored separately in macOS Keychain under the service name `karpi-
 - [x] Multiple profiles
 - [x] Beautiful CLI UI
 - [x] Session management
-
-### Phase 2: Productivity Features (Coming Soon)
-- [ ] Task management
-- [ ] Project tracker
-- [ ] Time tracking
-- [ ] Code snippets manager
-- [ ] Notes system
+- [x] Remote server & tunnel management (EC2, RDS, Redis, etc.)
 
 ### Phase 3: Web Integration
 - [ ] REST API client
