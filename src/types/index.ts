@@ -77,11 +77,25 @@ export interface IServerConfig {
   created_at: string;
   last_connected?: string;
   tunnels?: ITunnelConfig[];
+  synced_files?: ISyncedFile[]; // Local-to-remote file syncs
   // AWS integration
   aws_profile_id?: string; // Link to IAWSProfile
   aws_instance_id?: string; // EC2 instance ID if imported from AWS
   aws_region?: string; // Region where the instance is located
   private_ip?: string; // Private IP for VPC connections
+}
+
+/**
+ * Synced File - represents a file that can be synced from local to remote server
+ * Useful for deploying config files, .env files, etc.
+ */
+export interface ISyncedFile {
+  id: string;
+  name: string; // User-friendly name (e.g., "Dev ENV File", "Nginx Config")
+  local_path: string; // Absolute path on local machine
+  remote_path: string; // Absolute path on remote server
+  created_at: string;
+  last_synced?: string; // Last time the file was synced
 }
 
 export interface ITunnelConfig {

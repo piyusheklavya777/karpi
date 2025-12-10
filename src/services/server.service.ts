@@ -16,7 +16,9 @@ import type {
   IServerConfig,
   ITunnelConfig,
   IBackgroundProcess,
+  ISyncedFile,
 } from "../types";
+import { exec } from "child_process";
 
 const KEYS_DIR = "keys";
 
@@ -390,6 +392,258 @@ export class ServerService {
       return false;
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // Synced Files Management
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  async addSyncedFile(
+    serverId: string,
+    syncedFile: Omit<ISyncedFile, "id" | "created_at">
+  ): Promise<ISyncedFile | null> {
+    const server = this.getServer(serverId);
+    if (!server) {
+      logger.error("Server not found");
+      return null;
+    }
+
+    const newSyncedFile: ISyncedFile = {
+      ...syncedFile,
+      id: nanoid(),
+      created_at: new Date().toISOString(),
+    };
+
+    if (!server.synced_files) {
+      server.synced_files = [];
+    }
+
+    server.synced_files.push(newSyncedFile);
+    storageService.saveServer(server);
+    logger.success(
+      `Synced file "${newSyncedFile.name}" added to "${server.name}"`
+    );
+
+    return newSyncedFile;
+  }
+
+  async updateSyncedFile(
+    serverId: string,
+    syncedFileId: string,
+    updates: Partial<Omit<ISyncedFile, "id" | "created_at">>
+  ): Promise<ISyncedFile | null> {
+    const server = this.getServer(serverId);
+    if (!server || !server.synced_files) {
+      return null;
+    }
+
+    const index = server.synced_files.findIndex((sf) => sf.id === syncedFileId);
+    if (index === -1) {
+      return null;
+    }
+
+    server.synced_files[index] = {
+      ...server.synced_files[index],
+      ...updates,
+    };
+
+    storageService.saveServer(server);
+    return server.synced_files[index];
+  }
+
+  async deleteSyncedFile(
+    serverId: string,
+    syncedFileId: string
+  ): Promise<boolean> {
+    const server = this.getServer(serverId);
+    if (!server || !server.synced_files) {
+      return false;
+    }
+
+    const initialLength = server.synced_files.length;
+    server.synced_files = server.synced_files.filter(
+      (sf) => sf.id !== syncedFileId
+    );
+
+    if (server.synced_files.length !== initialLength) {
+      storageService.saveServer(server);
+      logger.success("Synced file deleted");
+      return true;
+    }
+
+    return false;
+  }
+
+  getSyncedFile(serverId: string, syncedFileId: string): ISyncedFile | null {
+    const server = this.getServer(serverId);
+    if (!server || !server.synced_files) {
+      return null;
+    }
+    return server.synced_files.find((sf) => sf.id === syncedFileId) || null;
+  }
+
+  /**
+   * Sync a local file to the remote server using SCP
+   */
+  async syncFileToRemote(
+    serverId: string,
+    syncedFileId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const server = this.getServer(serverId);
+    if (!server) {
+      return { success: false, error: "Server not found" };
+    }
+
+    const syncedFile = this.getSyncedFile(serverId, syncedFileId);
+    if (!syncedFile) {
+      return { success: false, error: "Synced file not found" };
+    }
+
+    // Expand local path
+    const localPath = this.expandPath(syncedFile.local_path);
+
+    // Check if local file exists
+    try {
+      await fs.access(localPath, constants.R_OK);
+    } catch {
+      return { success: false, error: `Local file not found: ${localPath}` };
+    }
+
+    // Build SCP command
+    const scpCommand = `scp -i "${server.pem_path}" "${localPath}" "${server.username}@${server.host}:${syncedFile.remote_path}"`;
+
+    return new Promise((resolve) => {
+      exec(scpCommand, (error, _stdout, stderr) => {
+        if (error) {
+          resolve({ success: false, error: stderr || error.message });
+        } else {
+          // Update last_synced timestamp
+          this.updateSyncedFile(serverId, syncedFileId, {
+            last_synced: new Date().toISOString(),
+          });
+          resolve({ success: true });
+        }
+      });
+    });
+  }
+
+  /**
+   * View a remote file's contents using SSH
+   */
+  async viewRemoteFile(
+    serverId: string,
+    remotePath: string
+  ): Promise<{ success: boolean; content?: string; error?: string }> {
+    const server = this.getServer(serverId);
+    if (!server) {
+      return { success: false, error: "Server not found" };
+    }
+
+    const sshCommand = `ssh -i "${server.pem_path}" "${server.username}@${server.host}" "cat '${remotePath}'"`;
+
+    return new Promise((resolve) => {
+      exec(sshCommand, { maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+        if (error) {
+          resolve({ success: false, error: stderr || error.message });
+        } else {
+          resolve({ success: true, content: stdout });
+        }
+      });
+    });
+  }
+
+  /**
+   * List files in a remote directory using SSH
+   */
+  async listRemoteDirectory(
+    serverId: string,
+    remotePath: string
+  ): Promise<{ success: boolean; files?: IRemoteFile[]; error?: string }> {
+    const server = this.getServer(serverId);
+    if (!server) {
+      return { success: false, error: "Server not found" };
+    }
+
+    // Use ls -la to get detailed file listing including hidden files
+    // Format: permissions links owner group size month day time/year name
+    const sshCommand = `ssh -i "${server.pem_path}" "${server.username}@${server.host}" "ls -laF '${remotePath}' 2>/dev/null || echo 'ERROR_DIR_NOT_FOUND'"`;
+
+    return new Promise((resolve) => {
+      exec(sshCommand, (error, stdout, stderr) => {
+        if (error) {
+          resolve({ success: false, error: stderr || error.message });
+          return;
+        }
+
+        if (stdout.includes("ERROR_DIR_NOT_FOUND")) {
+          resolve({ success: false, error: "Directory not found" });
+          return;
+        }
+
+        const lines = stdout.trim().split("\n");
+        const files: IRemoteFile[] = [];
+
+        for (const line of lines) {
+          // Skip total line
+          if (line.startsWith("total ")) continue;
+
+          // Parse ls -laF output
+          const parts = line.split(/\s+/);
+          if (parts.length < 9) continue;
+
+          const permissions = parts[0];
+          const name = parts
+            .slice(8)
+            .join(" ")
+            .replace(/[@*\/=|]$/, ""); // Remove type indicators
+          const isDirectory = permissions.startsWith("d");
+          const isHidden = name.startsWith(".");
+          const size = parseInt(parts[4], 10);
+
+          // Skip . and .. but keep other hidden files
+          if (name === "." || name === "..") continue;
+
+          files.push({
+            name,
+            path: remotePath === "/" ? `/${name}` : `${remotePath}/${name}`,
+            isDirectory,
+            isHidden,
+            size,
+            permissions,
+          });
+        }
+
+        // Sort: directories first, then by name
+        files.sort((a, b) => {
+          if (a.isDirectory && !b.isDirectory) return -1;
+          if (!a.isDirectory && b.isDirectory) return 1;
+          return a.name.localeCompare(b.name);
+        });
+
+        resolve({ success: true, files });
+      });
+    });
+  }
+
+  /**
+   * Get the SSH command string for a server
+   */
+  getSSHCommand(serverId: string): string | null {
+    const server = this.getServer(serverId);
+    if (!server) return null;
+    return `ssh -i "${server.pem_path}" "${server.username}@${server.host}"`;
+  }
+}
+
+/**
+ * Remote file info from ls command
+ */
+interface IRemoteFile {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  isHidden: boolean;
+  size: number;
+  permissions: string;
 }
 
 export const serverService = new ServerService();

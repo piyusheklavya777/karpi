@@ -14,6 +14,7 @@ import type {
   IServerConfig,
   ITunnelConfig,
   IBackgroundProcess,
+  ISyncedFile,
 } from "../../types";
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -38,6 +39,13 @@ const ICONS = {
   LINK: "🔗",
   CHECK: "✓",
   IMPORTED: "✅",
+  SYNC: "🔄",
+  FILE: "📄",
+  FOLDER: "📁",
+  VIEW: "👁️",
+  EDIT: "✏️",
+  ENV: "🔐",
+  BROWSE: "🔍",
 } as const;
 
 const BOX_CHARS = {
@@ -143,6 +151,9 @@ async function serverActionsMenu(serverId: string): Promise<void> {
         const deleted = await deleteServerFlow(serverId);
         if (deleted) running = false;
         break;
+      case "add_synced_file":
+        await addSyncedFileFlow(serverId);
+        break;
       case "back":
         running = false;
         break;
@@ -150,6 +161,9 @@ async function serverActionsMenu(serverId: string): Promise<void> {
         if (action.startsWith("tunnel:")) {
           const tunnelId = action.replace("tunnel:", "");
           await tunnelActionsMenu(serverId, tunnelId);
+        } else if (action.startsWith("syncedfile:")) {
+          const syncedFileId = action.replace("syncedfile:", "");
+          await syncedFileActionsMenu(serverId, syncedFileId);
         }
         break;
     }
@@ -476,12 +490,43 @@ function buildServerActionsChoices(
     }
   );
 
+  // Synced Files section
+  const syncedFiles = server.synced_files || [];
+  choices.push(
+    new inquirer.Separator(chalk.dim("─── Synced Files ──────────────────"))
+  );
+
+  if (syncedFiles.length > 0) {
+    syncedFiles.forEach((sf) => {
+      const lastSync = sf.last_synced
+        ? chalk.dim(
+            `synced ${format(new Date(sf.last_synced), "MMM d, HH:mm")}`
+          )
+        : chalk.dim("never synced");
+      const icon = sf.name.toLowerCase().includes("env")
+        ? ICONS.ENV
+        : ICONS.FILE;
+
+      choices.push({
+        name: `${icon}  ${chalk.hex(COLORS.BRIGHT_BLUE)(sf.name)} ${lastSync}`,
+        value: `syncedfile:${sf.id}`,
+      });
+    });
+  }
+
+  choices.push({
+    name: `${ICONS.ADD}  ${chalk.hex(COLORS.BOTTLE_GREEN)("Add Synced File")}`,
+    value: "add_synced_file",
+  });
+
   // AWS Profile linking
   const awsProfiles = storageService.getAllAWSProfiles();
   if (server.aws_profile_id) {
     const linkedProfile = storageService.getAWSProfile(server.aws_profile_id);
     choices.push({
-      name: `${ICONS.LINK}  ${chalk.cyan(`Unlink AWS Profile`)} ${chalk.dim(`(${linkedProfile?.name || "unknown"})`)}`,
+      name: `${ICONS.LINK}  ${chalk.cyan(`Unlink AWS Profile`)} ${chalk.dim(
+        `(${linkedProfile?.name || "unknown"})`
+      )}`,
       value: "unlink_aws",
     });
   } else if (awsProfiles.length > 0) {
@@ -534,7 +579,9 @@ async function addServerFlow(): Promise<void> {
         ? [{ name: `${ICONS.AWS}  Fetch from AWS`, value: "aws" }]
         : [
             {
-              name: chalk.dim(`${ICONS.AWS}  Fetch from AWS (no AWS profiles configured)`),
+              name: chalk.dim(
+                `${ICONS.AWS}  Fetch from AWS (no AWS profiles configured)`
+              ),
               value: "aws_disabled",
               disabled: true,
             },
@@ -722,7 +769,9 @@ async function fetchFromAWSFlow(): Promise<void> {
       : chalk.green("[NEW]");
 
     return {
-      name: `${ICONS.SERVER}  ${instance.name} ${chalk.dim(`(${instance.instance_id})`)} - ${instance.public_ip} ${status}`,
+      name: `${ICONS.SERVER}  ${instance.name} ${chalk.dim(
+        `(${instance.instance_id})`
+      )} - ${instance.public_ip} ${status}`,
       value: instance.instance_id,
       disabled: instance.is_imported,
     };
@@ -836,7 +885,9 @@ async function linkAWSProfileFlow(serverId: string): Promise<void> {
 
   const profile = storageService.getAWSProfile(profileId);
   console.log(
-    chalk.green(`\n${UI.ICONS.SUCCESS} Linked to AWS profile "${profile?.name}"`)
+    chalk.green(
+      `\n${UI.ICONS.SUCCESS} Linked to AWS profile "${profile?.name}"`
+    )
   );
   await waitForEnter();
 }
@@ -852,7 +903,9 @@ async function unlinkAWSProfileFlow(serverId: string): Promise<void> {
   const { confirm } = await inquirer.prompt({
     type: "confirm",
     name: "confirm",
-    message: `Unlink AWS profile "${profile?.name || "unknown"}" from this server?`,
+    message: `Unlink AWS profile "${
+      profile?.name || "unknown"
+    }" from this server?`,
     default: true,
   });
 
@@ -1080,6 +1133,655 @@ async function deleteServerFlow(serverId: string): Promise<boolean> {
     return true;
   }
   return false;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Synced Files UI
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function syncedFileActionsMenu(
+  serverId: string,
+  syncedFileId: string
+): Promise<void> {
+  const server = serverService.getServer(serverId);
+  if (!server) return;
+
+  const syncedFile = serverService.getSyncedFile(serverId, syncedFileId);
+  if (!syncedFile) return;
+
+  console.clear();
+  displaySyncedFileHeader(server, syncedFile);
+
+  const choices: Array<{ name: string; value: string } | inquirer.Separator> =
+    [];
+
+  choices.push({
+    name: `${ICONS.SYNC}  ${chalk.green("Sync to Remote")} ${chalk.dim(
+      "(Replace remote file)"
+    )}`,
+    value: "sync",
+  });
+  choices.push({
+    name: `${ICONS.VIEW}  ${chalk.cyan("View Remote File")}`,
+    value: "view",
+  });
+  choices.push(
+    new inquirer.Separator(chalk.dim("───────────────────────────────────"))
+  );
+  choices.push({
+    name: `${ICONS.EDIT}  ${chalk.white("Edit Configuration")}`,
+    value: "edit",
+  });
+  choices.push({
+    name: `${ICONS.DELETE}  ${chalk.red("Delete")}`,
+    value: "delete",
+  });
+  choices.push(
+    new inquirer.Separator(chalk.dim("───────────────────────────────────"))
+  );
+  choices.push({
+    name: `${ICONS.BACK}  ${chalk.dim("Back")}`,
+    value: "back",
+  });
+
+  const { action } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "action",
+      message: chalk.hex(COLORS.BRIGHT_BLUE)("Action:"),
+      choices,
+      pageSize: 10,
+    },
+  ]);
+
+  switch (action) {
+    case "sync":
+      await syncFileToRemote(serverId, syncedFileId);
+      break;
+    case "view":
+      await viewRemoteFile(serverId, syncedFile.remote_path);
+      break;
+    case "edit":
+      await editSyncedFileFlow(serverId, syncedFileId);
+      break;
+    case "delete":
+      await deleteSyncedFile(serverId, syncedFileId);
+      break;
+  }
+}
+
+function displaySyncedFileHeader(
+  server: IServerConfig,
+  syncedFile: ISyncedFile
+): void {
+  const icon = syncedFile.name.toLowerCase().includes("env")
+    ? ICONS.ENV
+    : ICONS.FILE;
+
+  const header = boxen(
+    chalk.hex(COLORS.BOTTLE_GREEN).bold(`${icon} ${syncedFile.name}`) +
+      "\n" +
+      chalk.dim(`on ${server.name}`),
+    {
+      padding: { left: 2, right: 2, top: 0, bottom: 0 },
+      borderStyle: "round",
+      borderColor: "cyan",
+    }
+  );
+  console.log(header);
+  console.log();
+
+  // File details
+  const details = [
+    chalk.dim("Local:  ") + chalk.white(syncedFile.local_path),
+    chalk.dim("Remote: ") + chalk.white(syncedFile.remote_path),
+    syncedFile.last_synced
+      ? chalk.dim("Last Synced: ") +
+        chalk.green(format(new Date(syncedFile.last_synced), "PPpp"))
+      : chalk.dim("Last Synced: ") + chalk.yellow("Never"),
+  ].join("\n");
+
+  console.log(
+    boxen(details, {
+      padding: { left: 2, right: 2, top: 1, bottom: 1 },
+      borderStyle: "round",
+      borderColor: "gray",
+      dimBorder: true,
+    })
+  );
+  console.log();
+}
+
+async function addSyncedFileFlow(serverId: string): Promise<void> {
+  const server = serverService.getServer(serverId);
+  if (!server) return;
+
+  console.clear();
+  console.log(
+    boxen(
+      chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.ADD} Add Synced File`) +
+        "\n" +
+        chalk.dim(`to ${server.name}`),
+      {
+        padding: { left: 2, right: 2, top: 0, bottom: 0 },
+        borderStyle: "round",
+        borderColor: "cyan",
+      }
+    )
+  );
+  console.log();
+
+  // Step 1: Name
+  const { name } = await inquirer.prompt([
+    {
+      type: "input",
+      name: "name",
+      message: chalk.hex(COLORS.BRIGHT_BLUE)("Name (e.g., 'Dev ENV File'):"),
+      validate: (input: string) =>
+        input.trim().length > 0 || "Name is required",
+    },
+  ]);
+
+  // Step 2: Local file path
+  const { localPath } = await inquirer.prompt([
+    {
+      type: "input",
+      name: "localPath",
+      message: chalk.hex(COLORS.BRIGHT_BLUE)("Local file path (absolute):"),
+      validate: (input: string) =>
+        input.trim().length > 0 || "Path is required",
+    },
+  ]);
+
+  // Step 3: Remote path (with options)
+  const remotePath = await getRemotePathWithOptions(serverId, server);
+  if (!remotePath) return;
+
+  // Create the synced file
+  const spinner = ora("Adding synced file...").start();
+  const result = await serverService.addSyncedFile(serverId, {
+    name: name.trim(),
+    local_path: localPath.trim(),
+    remote_path: remotePath,
+  });
+
+  if (result) {
+    spinner.succeed(chalk.green("Synced file added!"));
+  } else {
+    spinner.fail(chalk.red("Failed to add synced file"));
+  }
+
+  await waitForEnter();
+}
+
+async function getRemotePathWithOptions(
+  serverId: string,
+  server: IServerConfig
+): Promise<string | null> {
+  const existingSyncedFiles = server.synced_files || [];
+
+  const choices: Array<{ name: string; value: string } | inquirer.Separator> = [
+    {
+      name: `${ICONS.EDIT}  Type path manually`,
+      value: "manual",
+    },
+    {
+      name: `${ICONS.BROWSE}  Browse remote server`,
+      value: "browse",
+    },
+  ];
+
+  if (existingSyncedFiles.length > 0) {
+    choices.push(
+      new inquirer.Separator(chalk.dim("─── Copy from existing ────────────"))
+    );
+    existingSyncedFiles.forEach((sf) => {
+      choices.push({
+        name: `${ICONS.COPY}  ${sf.name}: ${chalk.dim(sf.remote_path)}`,
+        value: `copy:${sf.id}`,
+      });
+    });
+  }
+
+  choices.push(
+    new inquirer.Separator(chalk.dim("───────────────────────────────────")),
+    {
+      name: `${ICONS.BACK}  Cancel`,
+      value: "cancel",
+    }
+  );
+
+  const { method } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "method",
+      message: chalk.hex(COLORS.BRIGHT_BLUE)(
+        "How would you like to specify the remote path?"
+      ),
+      choices,
+      pageSize: 12,
+    },
+  ]);
+
+  if (method === "cancel") return null;
+
+  if (method === "manual") {
+    const { remotePath } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "remotePath",
+        message: chalk.hex(COLORS.BRIGHT_BLUE)(
+          "Remote path (absolute on server):"
+        ),
+        validate: (input: string) =>
+          input.trim().length > 0 || "Path is required",
+      },
+    ]);
+    return remotePath.trim();
+  }
+
+  if (method === "browse") {
+    return await browseRemoteFileSystem(serverId);
+  }
+
+  if (method.startsWith("copy:")) {
+    const sfId = method.replace("copy:", "");
+    const sf = existingSyncedFiles.find((s) => s.id === sfId);
+    if (sf) {
+      // Pre-fill with the copied path, allow editing
+      const { remotePath } = await inquirer.prompt([
+        {
+          type: "input",
+          name: "remotePath",
+          message: chalk.hex(COLORS.BRIGHT_BLUE)(
+            "Remote path (edit as needed):"
+          ),
+          default: sf.remote_path,
+          validate: (input: string) =>
+            input.trim().length > 0 || "Path is required",
+        },
+      ]);
+      return remotePath.trim();
+    }
+  }
+
+  return null;
+}
+
+async function browseRemoteFileSystem(
+  serverId: string
+): Promise<string | null> {
+  let currentPath = "/home";
+
+  // Try to detect home directory
+  const server = serverService.getServer(serverId);
+  if (server) {
+    currentPath = `/home/${server.username}`;
+  }
+
+  console.log();
+  console.log(
+    chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.BROWSE} Remote File Browser`)
+  );
+  console.log(chalk.dim("Navigate and select a file. Hidden files are shown."));
+  console.log();
+
+  while (true) {
+    const spinner = ora(`Loading ${currentPath}...`).start();
+    const result = await serverService.listRemoteDirectory(
+      serverId,
+      currentPath
+    );
+    spinner.stop();
+
+    if (!result.success || !result.files) {
+      console.log(
+        chalk.red(`Error: ${result.error || "Could not list directory"}`)
+      );
+      // Try parent directory
+      const { retry } = await inquirer.prompt([
+        {
+          type: "confirm",
+          name: "retry",
+          message: "Try parent directory?",
+          default: true,
+        },
+      ]);
+      if (retry) {
+        currentPath = currentPath.split("/").slice(0, -1).join("/") || "/";
+        continue;
+      }
+      return null;
+    }
+
+    const files = result.files;
+    const choices: Array<{ name: string; value: string } | inquirer.Separator> =
+      [];
+
+    // Current path display
+    choices.push(new inquirer.Separator(chalk.cyan(`📍 ${currentPath}`)));
+    choices.push(
+      new inquirer.Separator(chalk.dim("───────────────────────────────────"))
+    );
+
+    // Go up option
+    if (currentPath !== "/") {
+      choices.push({
+        name: `${ICONS.FOLDER}  ${chalk.yellow("..")} ${chalk.dim(
+          "(parent directory)"
+        )}`,
+        value: "..parent",
+      });
+    }
+
+    // Files and directories
+    files.forEach((file) => {
+      if (file.isDirectory) {
+        choices.push({
+          name: `${ICONS.FOLDER}  ${chalk.blue(file.name)}/`,
+          value: `dir:${file.path}`,
+        });
+      } else {
+        // Highlight env files
+        const isEnv =
+          file.name.includes(".env") ||
+          file.name.endsWith(".conf") ||
+          file.name.endsWith(".config");
+        const icon = isEnv ? ICONS.ENV : ICONS.FILE;
+        const color = isEnv
+          ? chalk.green
+          : file.isHidden
+          ? chalk.dim
+          : chalk.white;
+        const sizeStr = chalk.dim(`(${formatFileSize(file.size)})`);
+
+        choices.push({
+          name: `${icon}  ${color(file.name)} ${sizeStr}`,
+          value: `file:${file.path}`,
+        });
+      }
+    });
+
+    choices.push(
+      new inquirer.Separator(chalk.dim("───────────────────────────────────"))
+    );
+    choices.push({
+      name: `${ICONS.EDIT}  ${chalk.cyan("Enter path manually")}`,
+      value: "manual",
+    });
+    choices.push({
+      name: `${ICONS.BACK}  ${chalk.dim("Cancel")}`,
+      value: "cancel",
+    });
+
+    const { selection } = await inquirer.prompt([
+      {
+        type: "list",
+        name: "selection",
+        message: chalk.hex(COLORS.BRIGHT_BLUE)("Select file or navigate:"),
+        choices,
+        pageSize: 20,
+      },
+    ]);
+
+    if (selection === "cancel") return null;
+
+    if (selection === "manual") {
+      const { path: manualPath } = await inquirer.prompt([
+        {
+          type: "input",
+          name: "path",
+          message: "Enter path:",
+          default: currentPath + "/",
+        },
+      ]);
+      return manualPath.trim();
+    }
+
+    if (selection === "..parent") {
+      currentPath = currentPath.split("/").slice(0, -1).join("/") || "/";
+      continue;
+    }
+
+    if (selection.startsWith("dir:")) {
+      currentPath = selection.replace("dir:", "");
+      continue;
+    }
+
+    if (selection.startsWith("file:")) {
+      return selection.replace("file:", "");
+    }
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+async function syncFileToRemote(
+  serverId: string,
+  syncedFileId: string
+): Promise<void> {
+  const syncedFile = serverService.getSyncedFile(serverId, syncedFileId);
+  if (!syncedFile) return;
+
+  const { confirm } = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "confirm",
+      message: chalk.yellow(
+        `Replace remote file ${chalk.white(
+          syncedFile.remote_path
+        )} with local file?`
+      ),
+      default: true,
+    },
+  ]);
+
+  if (!confirm) return;
+
+  const spinner = ora("Syncing file to remote...").start();
+  const result = await serverService.syncFileToRemote(serverId, syncedFileId);
+
+  if (result.success) {
+    spinner.succeed(chalk.green("File synced successfully!"));
+  } else {
+    spinner.fail(chalk.red(`Sync failed: ${result.error}`));
+  }
+
+  await waitForEnter();
+}
+
+async function viewRemoteFile(
+  serverId: string,
+  remotePath: string
+): Promise<void> {
+  const spinner = ora("Fetching remote file...").start();
+  const result = await serverService.viewRemoteFile(serverId, remotePath);
+
+  if (result.success && result.content) {
+    spinner.stop();
+    console.clear();
+
+    console.log(
+      boxen(
+        chalk
+          .hex(COLORS.BOTTLE_GREEN)
+          .bold(`${ICONS.VIEW} Remote File Contents`) +
+          "\n" +
+          chalk.dim(remotePath),
+        {
+          padding: { left: 2, right: 2, top: 0, bottom: 0 },
+          borderStyle: "round",
+          borderColor: "cyan",
+        }
+      )
+    );
+    console.log();
+
+    // Display file contents with line numbers
+    const lines = result.content.split("\n");
+    const maxLineNum = String(lines.length).length;
+
+    lines.forEach((line, i) => {
+      const lineNum = chalk.dim(
+        String(i + 1).padStart(maxLineNum, " ") + " │ "
+      );
+      console.log(lineNum + line);
+    });
+
+    console.log();
+  } else {
+    spinner.fail(chalk.red(`Failed to read file: ${result.error}`));
+  }
+
+  await waitForEnter();
+}
+
+async function editSyncedFileFlow(
+  serverId: string,
+  syncedFileId: string
+): Promise<void> {
+  const server = serverService.getServer(serverId);
+  const syncedFile = serverService.getSyncedFile(serverId, syncedFileId);
+  if (!server || !syncedFile) return;
+
+  console.clear();
+  console.log(
+    boxen(
+      chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.EDIT} Edit Synced File`),
+      {
+        padding: { left: 2, right: 2, top: 0, bottom: 0 },
+        borderStyle: "round",
+        borderColor: "cyan",
+      }
+    )
+  );
+  console.log();
+
+  const { name } = await inquirer.prompt([
+    {
+      type: "input",
+      name: "name",
+      message: chalk.hex(COLORS.BRIGHT_BLUE)("Name:"),
+      default: syncedFile.name,
+    },
+  ]);
+
+  const { localPath } = await inquirer.prompt([
+    {
+      type: "input",
+      name: "localPath",
+      message: chalk.hex(COLORS.BRIGHT_BLUE)("Local path:"),
+      default: syncedFile.local_path,
+    },
+  ]);
+
+  // Remote path with copy option
+  const existingFiles = (server.synced_files || []).filter(
+    (sf) => sf.id !== syncedFileId
+  );
+
+  const remoteChoices: Array<
+    { name: string; value: string } | inquirer.Separator
+  > = [
+    {
+      name: `${ICONS.EDIT}  Keep current: ${chalk.dim(syncedFile.remote_path)}`,
+      value: "keep",
+    },
+    {
+      name: `${ICONS.EDIT}  Edit manually`,
+      value: "edit",
+    },
+    {
+      name: `${ICONS.BROWSE}  Browse remote server`,
+      value: "browse",
+    },
+  ];
+
+  if (existingFiles.length > 0) {
+    remoteChoices.push(
+      new inquirer.Separator(chalk.dim("─── Copy from other synced file ───"))
+    );
+    existingFiles.forEach((sf) => {
+      remoteChoices.push({
+        name: `${ICONS.COPY}  ${sf.name}: ${chalk.dim(sf.remote_path)}`,
+        value: `copy:${sf.remote_path}`,
+      });
+    });
+  }
+
+  const { remoteMethod } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "remoteMethod",
+      message: chalk.hex(COLORS.BRIGHT_BLUE)("Remote path:"),
+      choices: remoteChoices,
+      pageSize: 10,
+    },
+  ]);
+
+  let remotePath = syncedFile.remote_path;
+
+  if (remoteMethod === "edit") {
+    const { newPath } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "newPath",
+        message: "New remote path:",
+        default: syncedFile.remote_path,
+      },
+    ]);
+    remotePath = newPath.trim();
+  } else if (remoteMethod === "browse") {
+    const browsedPath = await browseRemoteFileSystem(serverId);
+    if (browsedPath) remotePath = browsedPath;
+  } else if (remoteMethod.startsWith("copy:")) {
+    const copiedPath = remoteMethod.replace("copy:", "");
+    const { editedPath } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "editedPath",
+        message: "Edit path as needed:",
+        default: copiedPath,
+      },
+    ]);
+    remotePath = editedPath.trim();
+  }
+
+  const spinner = ora("Updating...").start();
+  await serverService.updateSyncedFile(serverId, syncedFileId, {
+    name: name.trim(),
+    local_path: localPath.trim(),
+    remote_path: remotePath,
+  });
+  spinner.succeed(chalk.green("Synced file updated!"));
+
+  await waitForEnter();
+}
+
+async function deleteSyncedFile(
+  serverId: string,
+  syncedFileId: string
+): Promise<void> {
+  const { confirm } = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "confirm",
+      message: chalk.red(
+        "Are you sure you want to delete this synced file config?"
+      ),
+      default: false,
+    },
+  ]);
+
+  if (confirm) {
+    await serverService.deleteSyncedFile(serverId, syncedFileId);
+    console.log(chalk.green("\n" + UI.ICONS.SUCCESS + " Synced file deleted."));
+    await waitForEnter();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
