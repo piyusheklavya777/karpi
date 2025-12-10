@@ -2,16 +2,53 @@
 
 import inquirer from "inquirer";
 import boxen from "boxen";
+import chalk from "chalk";
 import { format } from "date-fns";
 import { authService } from "../../services/auth.service";
 import { styled, UI, COLORS } from "../../config/constants";
 import { logger } from "../../utils/logger";
+import { storageService } from "../../services/storage.service";
 
 import { serversMenu } from "./servers";
 import { awsProfilesMenu } from "./aws-profiles";
 import { rdsMenu } from "./rds";
 import { serverService } from "../../services/server.service";
-import type { IRecentAction, IBackgroundProcess } from "../../types";
+import type {
+  IRecentAction,
+  IBackgroundProcess,
+  IUserProfile,
+} from "../../types";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ASCII Art Logo
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const LOGO = `
+██╗  ██╗ █████╗ ██████╗ ██████╗ ██╗
+██║ ██╔╝██╔══██╗██╔══██╗██╔══██╗██║
+█████╔╝ ███████║██████╔╝██████╔╝██║
+██╔═██╗ ██╔══██║██╔══██╗██╔═══╝ ██║
+██║  ██╗██║  ██║██║  ██║██║     ██║
+╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝`;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Menu Icons (larger, more visible)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const MENU_ICONS = {
+  SERVERS: "🖥️ ",
+  AWS: "☁️ ",
+  RDS: "🗄️ ",
+  STATS: "📊",
+  PROFILE: "👤",
+  LOGOUT: "🚪",
+  EXIT: "👋",
+  SSH: "🔐",
+  TUNNEL: "🚇",
+  KILL: "⛔",
+  ONLINE: "🟢",
+  OFFLINE: "🔴",
+} as const;
 
 export async function dashboardCommand(): Promise<void> {
   // Check authentication
@@ -44,73 +81,105 @@ export async function dashboardCommand(): Promise<void> {
 
     const choices: any[] = [];
 
-    // Quick Actions Section
-    if (recentActions.length > 0) {
+    // ═══════════════════════════════════════════════════════════
+    // MAIN MENU SECTION
+    // ═══════════════════════════════════════════════════════════
+
+    choices.push(
+      new inquirer.Separator(
+        chalk.hex(COLORS.BRIGHT_BLUE).bold("  ▸ MAIN MENU")
+      )
+    );
+    choices.push(new inquirer.Separator(chalk.dim("  ")));
+
+    choices.push({
+      name: `  ${MENU_ICONS.SERVERS} ${chalk.bold(
+        "Servers & Tunnels"
+      )}      ${chalk.dim("Manage SSH connections")}`,
+      value: { type: "standard", data: "servers" },
+    });
+    choices.push({
+      name: `  ${MENU_ICONS.RDS} ${chalk.bold(
+        "RDS Databases"
+      )}          ${chalk.dim("Manage database tunnels")}`,
+      value: { type: "standard", data: "rds" },
+    });
+    choices.push({
+      name: `  ${MENU_ICONS.AWS} ${chalk.bold(
+        "AWS Profiles"
+      )}           ${chalk.dim("Manage AWS credentials")}`,
+      value: { type: "standard", data: "aws" },
+    });
+
+    // ═══════════════════════════════════════════════════════════
+    // QUICK ACTIONS SECTION (if any)
+    // ═══════════════════════════════════════════════════════════
+
+    if (recentActions.length > 0 || processes.length > 0) {
+      choices.push(new inquirer.Separator(chalk.dim("  ")));
       choices.push(
-        new inquirer.Separator(styled.dimmed("--- Quick Actions (History) ---"))
+        new inquirer.Separator(
+          chalk.hex(COLORS.BOTTLE_GREEN).bold("  ▸ QUICK ACTIONS")
+        )
       );
-      recentActions.forEach((action) => {
-        const label =
-          action.type === "ssh"
-            ? `${UI.ICONS.USER} SSH: ${styled.accent(
-                action.name.replace("SSH ", "")
-              )}`
-            : `🚇 Tunnel: ${styled.accent(action.name.replace("Tunnel ", ""))}`;
+      choices.push(new inquirer.Separator(chalk.dim("  ")));
+
+      // Recent actions
+      recentActions.slice(0, 4).forEach((action) => {
+        const icon = action.type === "ssh" ? MENU_ICONS.SSH : MENU_ICONS.TUNNEL;
+        const actionName = action.name
+          .replace("SSH ", "")
+          .replace("Tunnel ", "");
+        const typeLabel =
+          action.type === "ssh" ? chalk.cyan("SSH") : chalk.magenta("Tunnel");
 
         choices.push({
-          name: label,
+          name: `  ${icon} ${chalk.white(actionName)}  ${chalk.dim(
+            "→"
+          )} ${typeLabel}`,
           value: { type: "recent", data: action },
         });
       });
-    }
 
-    // Active Processes Section
-    if (processes.length > 0) {
-      choices.push(
-        new inquirer.Separator(
-          styled.dimmed(`--- Active Processes (${processes.length}) ---`)
-        )
-      );
+      // Active processes (with kill option)
       processes.forEach((proc) => {
         choices.push({
-          name: `${styled.error("[KILL]")} ${proc.name} ${styled.dimmed(
-            `(PID: ${proc.pid})`
-          )}`,
+          name: `  ${MENU_ICONS.KILL} ${chalk.red("Stop:")} ${chalk.white(
+            proc.name
+          )} ${chalk.dim(`PID ${proc.pid}`)}`,
           value: { type: "process", data: proc },
         });
       });
     }
 
-    // Standard Options Section
-    choices.push(
-      new inquirer.Separator(styled.dimmed("--- Standard Options ---"))
-    );
+    // ═══════════════════════════════════════════════════════════
+    // SETTINGS SECTION
+    // ═══════════════════════════════════════════════════════════
+
+    choices.push(new inquirer.Separator(chalk.dim("  ")));
+    choices.push(new inquirer.Separator(chalk.gray.bold("  ▸ SETTINGS")));
+    choices.push(new inquirer.Separator(chalk.dim("  ")));
+
     choices.push({
-      name: `🖥️  Manage Servers & Tunnels`,
-      value: { type: "standard", data: "servers" },
-    });
-    choices.push({
-      name: `☁️  AWS Profiles`,
-      value: { type: "standard", data: "aws" },
-    });
-    choices.push({
-      name: `🗄️  RDS Databases`,
-      value: { type: "standard", data: "rds" },
-    });
-    choices.push({
-      name: `${UI.ICONS.STATS} View Stats`,
+      name: `  ${MENU_ICONS.STATS} ${chalk.white("View Stats")}`,
       value: { type: "standard", data: "stats" },
     });
     choices.push({
-      name: `${UI.ICONS.USER} Profile Settings`,
+      name: `  ${MENU_ICONS.PROFILE} ${chalk.white("Profile Settings")}`,
       value: { type: "standard", data: "profile" },
     });
+
+    // ═══════════════════════════════════════════════════════════
+    // EXIT SECTION
+    // ═══════════════════════════════════════════════════════════
+
+    choices.push(new inquirer.Separator(chalk.dim("  ")));
     choices.push({
-      name: styled.dimmed("Logout"),
+      name: `  ${MENU_ICONS.LOGOUT} ${chalk.dim("Logout")}`,
       value: { type: "standard", data: "logout" },
     });
     choices.push({
-      name: styled.dimmed("Exit"),
+      name: `  ${MENU_ICONS.EXIT} ${chalk.dim("Exit")}`,
       value: { type: "standard", data: "exit" },
     });
 
@@ -118,8 +187,8 @@ export async function dashboardCommand(): Promise<void> {
       {
         type: "list",
         name: "selection",
-        message: styled.brand("Main Menu"),
-        pageSize: 15,
+        message: chalk.hex(COLORS.BRIGHT_BLUE)("Select an option:"),
+        pageSize: 20,
         choices: choices,
       },
     ]);
@@ -206,31 +275,64 @@ async function waitForEnter(
   ]);
 }
 
-function displayDashboard(profile: any): void {
-  const header = `
-╔════════════════════════════════════════════════════════════╗
-║                                                            ║
-║  ${styled.brand("KARPI")} ${styled.subtitle(
-    "Developer Productivity Dashboard"
-  )}              ║
-║                                                            ║
-╠════════════════════════════════════════════════════════════╣
-`;
+function displayDashboard(profile: IUserProfile): void {
+  // Display gradient logo
+  const logoLines = LOGO.split("\n");
+  const gradientColors = [
+    chalk.hex("#00bfff"), // Bright blue
+    chalk.hex("#00d4ff"),
+    chalk.hex("#00e8ff"),
+    chalk.hex("#2d5016"), // Bottle green
+    chalk.hex("#3a6b1c"),
+    chalk.hex("#4a7c2c"),
+  ];
 
-  const welcome = `
-║  ${styled.text("👋 Welcome back,")} ${styled.accent(
-    profile.username.padEnd(30)
-  )} ${UI.ICONS.ONLINE}        ║
-║  ${styled.dimmed("Last login:")} ${styled.value(
-    format(new Date(profile.last_login), "PPpp").padEnd(36)
-  )} ║
-`;
+  console.log();
+  logoLines.forEach((line, i) => {
+    const colorIndex = Math.min(i, gradientColors.length - 1);
+    console.log("  " + gradientColors[colorIndex](line));
+  });
 
-  const footer = `
-╚════════════════════════════════════════════════════════════╝
-`;
+  // Tagline
+  console.log();
+  console.log(chalk.dim("  ─────────────────────────────────────────"));
+  console.log(
+    chalk.hex(COLORS.BRIGHT_BLUE)("  ✨ Developer Productivity Unleashed")
+  );
+  console.log(chalk.dim("  ─────────────────────────────────────────"));
+  console.log();
 
-  console.log(styled.box(header) + styled.box(welcome) + styled.box(footer)); // + styled.box(footer));
+  // Welcome box
+  const servers = serverService.listServers();
+  const rdsInstances = storageService.getAllRDSInstances();
+  const processes = serverService.listProcesses();
+
+  const welcomeContent = [
+    chalk.white.bold(
+      `👋 Welcome back, ${chalk.hex(COLORS.BOTTLE_GREEN)(profile.username)}`
+    ),
+    "",
+    chalk.dim("Last login: ") +
+      chalk.white(format(new Date(profile.last_login), "PPpp")),
+    "",
+    chalk.dim("────────────────────────────────────────"),
+    "",
+    `${MENU_ICONS.SERVERS} ${chalk.white(servers.length)} servers   ` +
+      `${MENU_ICONS.RDS} ${chalk.white(rdsInstances.length)} databases   ` +
+      `${
+        processes.length > 0 ? MENU_ICONS.ONLINE : MENU_ICONS.OFFLINE
+      } ${chalk.white(processes.length)} active`,
+  ].join("\n");
+
+  console.log(
+    boxen(welcomeContent, {
+      padding: { left: 2, right: 2, top: 1, bottom: 1 },
+      borderStyle: "round",
+      borderColor: "cyan",
+      dimBorder: false,
+    })
+  );
+  console.log();
 }
 
 function displayStats(profile: any): void {
