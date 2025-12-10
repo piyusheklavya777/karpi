@@ -8,6 +8,7 @@ import { styled, UI, COLORS } from "../../config/constants";
 import { logger } from "../../utils/logger";
 
 import { serversMenu } from "./servers";
+import { awsProfilesMenu } from "./aws-profiles";
 import { serverService } from "../../services/server.service";
 import type { IRecentAction, IBackgroundProcess } from "../../types";
 
@@ -88,6 +89,10 @@ export async function dashboardCommand(): Promise<void> {
       value: { type: "standard", data: "servers" },
     });
     choices.push({
+      name: `☁️  AWS Profiles`,
+      value: { type: "standard", data: "aws" },
+    });
+    choices.push({
       name: `${UI.ICONS.STATS} View Stats`,
       value: { type: "standard", data: "stats" },
     });
@@ -140,6 +145,9 @@ export async function dashboardCommand(): Promise<void> {
       switch (selection.data) {
         case "servers":
           await serversMenu();
+          break;
+        case "aws":
+          await awsProfilesMenu();
           break;
         case "stats":
           displayStats(current.profile);

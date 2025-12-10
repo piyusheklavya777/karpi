@@ -5,8 +5,10 @@ import boxen from "boxen";
 import chalk from "chalk";
 import clipboard from "clipboardy";
 import { format } from "date-fns";
+import ora from "ora";
 import { serverService } from "../../services/server.service";
 import { storageService } from "../../services/storage.service";
+import { awsService, AWS_REGIONS } from "../../services/aws.service";
 import { UI, COLORS } from "../../config/constants";
 import type {
   IServerConfig,
@@ -32,6 +34,10 @@ const ICONS = {
   STOP: "⏹",
   ARROW_RIGHT: "→",
   SEPARATOR: "─",
+  AWS: "☁️",
+  LINK: "🔗",
+  CHECK: "✓",
+  IMPORTED: "✅",
 } as const;
 
 const BOX_CHARS = {
@@ -126,6 +132,12 @@ async function serverActionsMenu(serverId: string): Promise<void> {
         break;
       case "add_tunnel":
         await addTunnelFlow(serverId);
+        break;
+      case "link_aws":
+        await linkAWSProfileFlow(serverId);
+        break;
+      case "unlink_aws":
+        await unlinkAWSProfileFlow(serverId);
         break;
       case "delete_server":
         const deleted = await deleteServerFlow(serverId);
@@ -371,6 +383,15 @@ function buildMainMenuChoices(
       let displayName = `${ICONS.SERVER}  ${chalk.bold.hex(COLORS.BOTTLE_GREEN)(
         server.name
       )}`;
+
+      // Show linked AWS profile if exists
+      if (server.aws_profile_id) {
+        const awsProfile = storageService.getAWSProfile(server.aws_profile_id);
+        if (awsProfile) {
+          displayName += chalk.cyan(` [${ICONS.AWS} ${awsProfile.name}]`);
+        }
+      }
+
       displayName += chalk.dim(` (${server.username}@${server.host})`);
 
       // Show tunnel status indicators
@@ -455,6 +476,21 @@ function buildServerActionsChoices(
     }
   );
 
+  // AWS Profile linking
+  const awsProfiles = storageService.getAllAWSProfiles();
+  if (server.aws_profile_id) {
+    const linkedProfile = storageService.getAWSProfile(server.aws_profile_id);
+    choices.push({
+      name: `${ICONS.LINK}  ${chalk.cyan(`Unlink AWS Profile`)} ${chalk.dim(`(${linkedProfile?.name || "unknown"})`)}`,
+      value: "unlink_aws",
+    });
+  } else if (awsProfiles.length > 0) {
+    choices.push({
+      name: `${ICONS.AWS}  ${chalk.cyan("Link AWS Profile")}`,
+      value: "link_aws",
+    });
+  }
+
   // Danger zone
   choices.push(
     new inquirer.Separator(chalk.dim("─── Danger Zone ───────────────────")),
@@ -485,30 +521,77 @@ async function addServerFlow(): Promise<void> {
     chalk.hex(COLORS.BRIGHT_BLUE)(BOX_CHARS.HORIZONTAL.repeat(50)) + "\n"
   );
 
+  const awsProfiles = storageService.getAllAWSProfiles();
+
+  // Check if we have AWS profiles to offer fetch option
+  const { method } = await inquirer.prompt({
+    type: "list",
+    name: "method",
+    message: "How would you like to add a server?",
+    choices: [
+      { name: `${ICONS.ADD}  Manual Entry`, value: "manual" },
+      ...(awsProfiles.length > 0
+        ? [{ name: `${ICONS.AWS}  Fetch from AWS`, value: "aws" }]
+        : [
+            {
+              name: chalk.dim(`${ICONS.AWS}  Fetch from AWS (no AWS profiles configured)`),
+              value: "aws_disabled",
+              disabled: true,
+            },
+          ]),
+      new inquirer.Separator(),
+      { name: `${ICONS.BACK}  Cancel`, value: "cancel" },
+    ],
+  });
+
+  if (method === "cancel") return;
+
+  if (method === "aws") {
+    await fetchFromAWSFlow();
+    return;
+  }
+
+  // Manual entry flow
+  await addServerManualFlow();
+}
+
+async function addServerManualFlow(prefill?: {
+  name?: string;
+  host?: string;
+  username?: string;
+  pemPath?: string;
+  awsProfileId?: string;
+  awsInstanceId?: string;
+  awsRegion?: string;
+  privateIp?: string;
+}): Promise<void> {
   const answers = await inquirer.prompt([
     {
       type: "input",
       name: "name",
       message: "Server Name (alias):",
+      default: prefill?.name,
       validate: (input: string) => input.length > 0 || "Name is required",
     },
     {
       type: "input",
       name: "host",
       message: "IP Address / Hostname:",
+      default: prefill?.host,
       validate: (input: string) => input.length > 0 || "Host is required",
     },
     {
       type: "input",
       name: "username",
       message: "SSH Username:",
-      default: "ec2-user",
+      default: prefill?.username || "ec2-user",
       validate: (input: string) => input.length > 0 || "Username is required",
     },
     {
       type: "input",
       name: "pemPath",
       message: "Path to PEM file:",
+      default: prefill?.pemPath,
       validate: (input: string) => input.length > 0 || "PEM path is required",
     },
   ]);
@@ -519,6 +602,23 @@ async function addServerFlow(): Promise<void> {
     answers.username,
     answers.pemPath.trim()
   );
+
+  if (result && prefill?.awsProfileId) {
+    // Update the server with AWS metadata
+    const servers = storageService.getAllServers();
+    const newServer = servers.find(
+      (s) => s.name === answers.name && s.host === answers.host
+    );
+    if (newServer) {
+      storageService.saveServer({
+        ...newServer,
+        aws_profile_id: prefill.awsProfileId,
+        aws_instance_id: prefill.awsInstanceId,
+        aws_region: prefill.awsRegion,
+        private_ip: prefill.privateIp,
+      });
+    }
+  }
 
   if (result) {
     console.log(
@@ -531,12 +631,239 @@ async function addServerFlow(): Promise<void> {
   await waitForEnter();
 }
 
+async function fetchFromAWSFlow(): Promise<void> {
+  const awsProfiles = storageService.getAllAWSProfiles();
+
+  if (awsProfiles.length === 0) {
+    console.log(
+      chalk.yellow("\n⚠️  No AWS profiles configured. Please add one first.")
+    );
+    await waitForEnter();
+    return;
+  }
+
+  // Select AWS profile
+  const { profileId } = await inquirer.prompt({
+    type: "list",
+    name: "profileId",
+    message: "Select AWS Profile:",
+    choices: [
+      ...awsProfiles.map((p) => ({
+        name: `${ICONS.AWS}  ${p.name} ${chalk.dim(`(${p.default_region})`)}`,
+        value: p.id,
+      })),
+      new inquirer.Separator(),
+      { name: `${ICONS.BACK}  Cancel`, value: "cancel" },
+    ],
+  });
+
+  if (profileId === "cancel") return;
+
+  const profile = storageService.getAWSProfile(profileId);
+  if (!profile) return;
+
+  // Optionally change region
+  const { changeRegion } = await inquirer.prompt({
+    type: "confirm",
+    name: "changeRegion",
+    message: `Fetch from ${profile.default_region}? (No to select different region)`,
+    default: true,
+  });
+
+  let targetRegion = profile.default_region;
+
+  if (!changeRegion) {
+    const { region } = await inquirer.prompt({
+      type: "list",
+      name: "region",
+      message: "Select AWS Region:",
+      choices: AWS_REGIONS.map((r) => ({
+        name: `${r.value} - ${r.name}`,
+        value: r.value,
+      })),
+      default: profile.default_region,
+      pageSize: 12,
+    });
+    targetRegion = region;
+  }
+
+  // Fetch EC2 instances
+  const spinner = ora(`Fetching EC2 instances from ${targetRegion}...`).start();
+  const result = await awsService.fetchEC2Instances(profileId, targetRegion);
+
+  if (!result.success) {
+    spinner.fail(chalk.red(`Failed to fetch: ${result.error}`));
+    await waitForEnter();
+    return;
+  }
+
+  // Filter to only running instances with public IPs
+  const runningInstances = result.instances.filter(
+    (i) => i.state === "running" && i.public_ip
+  );
+
+  if (runningInstances.length === 0) {
+    spinner.warn(
+      chalk.yellow("No running EC2 instances with public IPs found.")
+    );
+    await waitForEnter();
+    return;
+  }
+
+  spinner.succeed(
+    chalk.green(`Found ${runningInstances.length} EC2 instance(s)`)
+  );
+  console.log();
+
+  // Display instances for selection
+  const instanceChoices = runningInstances.map((instance) => {
+    const status = instance.is_imported
+      ? chalk.dim(`[${ICONS.IMPORTED} Already added]`)
+      : chalk.green("[NEW]");
+
+    return {
+      name: `${ICONS.SERVER}  ${instance.name} ${chalk.dim(`(${instance.instance_id})`)} - ${instance.public_ip} ${status}`,
+      value: instance.instance_id,
+      disabled: instance.is_imported,
+    };
+  });
+
+  instanceChoices.push(new inquirer.Separator() as any);
+  instanceChoices.push({
+    name: `${ICONS.BACK}  Cancel`,
+    value: "cancel",
+    disabled: false,
+  });
+
+  const { selectedInstance } = await inquirer.prompt({
+    type: "list",
+    name: "selectedInstance",
+    message: "Select an EC2 instance to import:",
+    choices: instanceChoices,
+    pageSize: 15,
+  });
+
+  if (selectedInstance === "cancel") return;
+
+  const instance = runningInstances.find(
+    (i) => i.instance_id === selectedInstance
+  );
+  if (!instance) return;
+
+  // Show instance details
+  console.log();
+  console.log(
+    boxen(
+      [
+        chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.SERVER} ${instance.name}`),
+        "",
+        chalk.dim("Instance ID: ") + chalk.white(instance.instance_id),
+        chalk.dim("Public IP: ") + chalk.white(instance.public_ip),
+        chalk.dim("Private IP: ") + chalk.white(instance.private_ip || "N/A"),
+        chalk.dim("Type: ") + chalk.white(instance.instance_type),
+        chalk.dim("Key Name: ") + chalk.white(instance.key_name || "N/A"),
+        chalk.dim("VPC: ") + chalk.white(instance.vpc_id || "N/A"),
+      ].join("\n"),
+      {
+        padding: 1,
+        borderStyle: "round",
+        borderColor: "cyan",
+      }
+    )
+  );
+  console.log();
+
+  // Get suggested values
+  const suggestedUsername = awsService.getSuggestedUsername(instance);
+  const suggestedPemPath = awsService.getSuggestedPemPath(instance);
+
+  // Import the instance
+  await addServerManualFlow({
+    name: instance.name,
+    host: instance.public_ip!,
+    username: suggestedUsername,
+    pemPath: suggestedPemPath,
+    awsProfileId: profileId,
+    awsInstanceId: instance.instance_id,
+    awsRegion: targetRegion,
+    privateIp: instance.private_ip,
+  });
+}
+
 async function connectToServer(serverId: string): Promise<void> {
   try {
     await serverService.connectToServer(serverId);
     await waitForEnter("SSH session ended. Press Enter to continue...");
   } catch (error) {
     console.log(chalk.red("\nConnection failed."));
+    await waitForEnter();
+  }
+}
+
+async function linkAWSProfileFlow(serverId: string): Promise<void> {
+  const server = serverService.getServer(serverId);
+  if (!server) return;
+
+  const awsProfiles = storageService.getAllAWSProfiles();
+  if (awsProfiles.length === 0) {
+    console.log(
+      chalk.yellow("\n⚠️  No AWS profiles configured. Please add one first.")
+    );
+    await waitForEnter();
+    return;
+  }
+
+  const { profileId } = await inquirer.prompt({
+    type: "list",
+    name: "profileId",
+    message: "Select AWS Profile to link:",
+    choices: [
+      ...awsProfiles.map((p) => ({
+        name: `${ICONS.AWS}  ${p.name} ${chalk.dim(`(${p.default_region})`)}`,
+        value: p.id,
+      })),
+      new inquirer.Separator(),
+      { name: `${ICONS.BACK}  Cancel`, value: "cancel" },
+    ],
+  });
+
+  if (profileId === "cancel") return;
+
+  storageService.saveServer({
+    ...server,
+    aws_profile_id: profileId,
+  });
+
+  const profile = storageService.getAWSProfile(profileId);
+  console.log(
+    chalk.green(`\n${UI.ICONS.SUCCESS} Linked to AWS profile "${profile?.name}"`)
+  );
+  await waitForEnter();
+}
+
+async function unlinkAWSProfileFlow(serverId: string): Promise<void> {
+  const server = serverService.getServer(serverId);
+  if (!server) return;
+
+  const profile = server.aws_profile_id
+    ? storageService.getAWSProfile(server.aws_profile_id)
+    : null;
+
+  const { confirm } = await inquirer.prompt({
+    type: "confirm",
+    name: "confirm",
+    message: `Unlink AWS profile "${profile?.name || "unknown"}" from this server?`,
+    default: true,
+  });
+
+  if (confirm) {
+    storageService.saveServer({
+      ...server,
+      aws_profile_id: undefined,
+      aws_instance_id: undefined,
+      aws_region: undefined,
+    });
+    console.log(chalk.green(`\n${UI.ICONS.SUCCESS} AWS profile unlinked`));
     await waitForEnter();
   }
 }
