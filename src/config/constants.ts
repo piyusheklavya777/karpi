@@ -59,7 +59,7 @@ export const styled = {
 
 // Application constants
 export const APP_NAME = "KARPI";
-export const APP_VERSION = "1.3.0";
+export const APP_VERSION = "1.3.1";
 export const APP_DESCRIPTION = "Developer Productivity Unleashed";
 
 // Storage

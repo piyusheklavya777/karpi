@@ -1294,7 +1294,11 @@ async function addSyncedFileFlow(serverId: string): Promise<void> {
   ]);
 
   // Step 3: Remote path (with options)
-  const remotePath = await getRemotePathWithOptions(serverId, server);
+  const remotePath = await getRemotePathWithOptions(
+    serverId,
+    server,
+    localPath.trim()
+  );
   if (!remotePath) return;
 
   // Create the synced file
@@ -1316,9 +1320,13 @@ async function addSyncedFileFlow(serverId: string): Promise<void> {
 
 async function getRemotePathWithOptions(
   serverId: string,
-  server: IServerConfig
+  server: IServerConfig,
+  localFilePath?: string
 ): Promise<string | null> {
   const existingSyncedFiles = server.synced_files || [];
+  const localFileName = localFilePath
+    ? localFilePath.split("/").pop() || ""
+    : "";
 
   const choices: Array<{ name: string; value: string } | inquirer.Separator> = [
     {
@@ -1381,7 +1389,7 @@ async function getRemotePathWithOptions(
   }
 
   if (method === "browse") {
-    return await browseRemoteFileSystem(serverId);
+    return await browseRemoteFileSystem(serverId, localFileName);
   }
 
   if (method.startsWith("copy:")) {
@@ -1409,7 +1417,8 @@ async function getRemotePathWithOptions(
 }
 
 async function browseRemoteFileSystem(
-  serverId: string
+  serverId: string,
+  localFileName?: string
 ): Promise<string | null> {
   let currentPath = "/home";
 
@@ -1423,7 +1432,10 @@ async function browseRemoteFileSystem(
   console.log(
     chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.BROWSE} Remote File Browser`)
   );
-  console.log(chalk.dim("Navigate and select a file. Hidden files are shown."));
+  console.log(chalk.dim("Navigate and select a file, or create a new one."));
+  if (localFileName) {
+    console.log(chalk.dim(`Local file: ${chalk.white(localFileName)}`));
+  }
   console.log();
 
   while (true) {
@@ -1505,6 +1517,13 @@ async function browseRemoteFileSystem(
     choices.push(
       new inquirer.Separator(chalk.dim("───────────────────────────────────"))
     );
+
+    // Create new file option
+    choices.push({
+      name: `${ICONS.ADD}  ${chalk.green("Create new file here")}`,
+      value: "create_new",
+    });
+
     choices.push({
       name: `${ICONS.EDIT}  ${chalk.cyan("Enter path manually")}`,
       value: "manual",
@@ -1525,6 +1544,11 @@ async function browseRemoteFileSystem(
     ]);
 
     if (selection === "cancel") return null;
+
+    if (selection === "create_new") {
+      // Ask for filename options
+      return await createNewFilePrompt(currentPath, localFileName);
+    }
 
     if (selection === "manual") {
       const { path: manualPath } = await inquirer.prompt([
@@ -1552,6 +1576,73 @@ async function browseRemoteFileSystem(
       return selection.replace("file:", "");
     }
   }
+}
+
+async function createNewFilePrompt(
+  currentPath: string,
+  localFileName?: string
+): Promise<string | null> {
+  const choices: Array<{ name: string; value: string }> = [];
+
+  if (localFileName) {
+    choices.push({
+      name: `${ICONS.FILE}  Use original name: ${chalk.green(localFileName)}`,
+      value: "original",
+    });
+  }
+
+  choices.push({
+    name: `${ICONS.EDIT}  Enter custom filename`,
+    value: "custom",
+  });
+
+  const { method } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "method",
+      message: chalk.hex(COLORS.BRIGHT_BLUE)(
+        "How would you like to name the remote file?"
+      ),
+      choices,
+    },
+  ]);
+
+  let fileName: string;
+
+  if (method === "original" && localFileName) {
+    fileName = localFileName;
+  } else {
+    const { customName } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "customName",
+        message: chalk.hex(COLORS.BRIGHT_BLUE)("Enter filename:"),
+        default: localFileName || "",
+        validate: (input: string) => {
+          if (!input.trim()) return "Filename is required";
+          if (input.includes("/")) return "Filename cannot contain /";
+          return true;
+        },
+      },
+    ]);
+    fileName = customName.trim();
+  }
+
+  const fullPath =
+    currentPath === "/" ? `/${fileName}` : `${currentPath}/${fileName}`;
+
+  console.log(chalk.dim(`\nRemote path will be: ${chalk.white(fullPath)}`));
+
+  const { confirm } = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "confirm",
+      message: "Use this path?",
+      default: true,
+    },
+  ]);
+
+  return confirm ? fullPath : null;
 }
 
 function formatFileSize(bytes: number): string {
