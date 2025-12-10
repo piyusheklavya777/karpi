@@ -62,15 +62,15 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
           SHA: ${{ steps.package.outputs.sha }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          GH_TAP_TOKEN: ${{ secrets.GH_TAP_TOKEN }}
         shell: bash
         run: |
-          if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
-            echo "HOMEBREW_TAP_TOKEN not set; skipping Homebrew tap update."
+          if [ -z "${GH_TAP_TOKEN}" ]; then
+            echo "GH_TAP_TOKEN not set; skipping Homebrew tap update."
             exit 0
           fi
 
-          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/piyusheklavya777/homebrew-tap.git"
+          git clone "https://x-access-token:${GH_TAP_TOKEN}@github.com/piyusheklavya777/homebrew-tap.git"
           cd homebrew-tap
           sed -i.bak "s|^  url \".*\"|  url \"https://github.com/piyusheklavya777/karpi/releases/download/v${VERSION}/karpi-v${VERSION}.tar.gz\"|" karpi.rb
           sed -i.bak "s|^  sha256 \".*\"|  sha256 \"${SHA}\"|" karpi.rb
