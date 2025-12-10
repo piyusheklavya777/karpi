@@ -9,6 +9,7 @@ import { logger } from "../../utils/logger";
 
 import { serversMenu } from "./servers";
 import { awsProfilesMenu } from "./aws-profiles";
+import { rdsMenu } from "./rds";
 import { serverService } from "../../services/server.service";
 import type { IRecentAction, IBackgroundProcess } from "../../types";
 
@@ -93,6 +94,10 @@ export async function dashboardCommand(): Promise<void> {
       value: { type: "standard", data: "aws" },
     });
     choices.push({
+      name: `🗄️  RDS Databases`,
+      value: { type: "standard", data: "rds" },
+    });
+    choices.push({
       name: `${UI.ICONS.STATS} View Stats`,
       value: { type: "standard", data: "stats" },
     });
@@ -148,6 +153,9 @@ export async function dashboardCommand(): Promise<void> {
           break;
         case "aws":
           await awsProfilesMenu();
+          break;
+        case "rds":
+          await rdsMenu();
           break;
         case "stats":
           displayStats(current.profile);

@@ -64,6 +64,7 @@ export interface IStorageConfig {
   processes: IBackgroundProcess[]; // Persist PIDs
   preferences: IGlobalPreferences;
   aws_profiles: IAWSProfile[]; // AWS credential profiles
+  rds_instances: IRDSInstance[]; // RDS database instances
 }
 
 export interface IServerConfig {
@@ -170,6 +171,91 @@ export interface IAWSInstance {
 export interface IAWSFetchResult {
   success: boolean;
   instances: IAWSInstance[];
+  error?: string;
+  region: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RDS Types
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Supported RDS engine types
+ */
+export type TRDSEngine =
+  | "postgres"
+  | "mysql"
+  | "mariadb"
+  | "aurora-postgresql"
+  | "aurora-mysql"
+  | "sqlserver-ex"
+  | "sqlserver-web"
+  | "sqlserver-se"
+  | "sqlserver-ee"
+  | "oracle-se2"
+  | "oracle-ee";
+
+/**
+ * RDS Instance stored in CLI
+ */
+export interface IRDSInstance {
+  id: string;
+  name: string; // User-friendly alias
+  profile_id: string; // Karpi user profile
+  aws_profile_id: string; // AWS credentials profile
+  // AWS metadata
+  db_instance_identifier: string;
+  endpoint: string;
+  port: number;
+  engine: TRDSEngine;
+  engine_version: string;
+  db_name?: string;
+  master_username?: string;
+  status: string;
+  vpc_id?: string;
+  aws_region: string;
+  // Linked server for tunneling
+  linked_server_id?: string;
+  linked_tunnel_id?: string;
+  // Connection
+  local_port?: number; // Port to use when tunneling
+  // Timestamps
+  created_at: string;
+  last_connected?: string;
+}
+
+/**
+ * RDS Instance data fetched from AWS
+ */
+export interface IAWSRDSInstance {
+  db_instance_identifier: string;
+  db_instance_class: string;
+  engine: TRDSEngine;
+  engine_version: string;
+  status: string;
+  endpoint?: string;
+  port: number;
+  db_name?: string;
+  master_username?: string;
+  vpc_id?: string;
+  availability_zone?: string;
+  multi_az: boolean;
+  storage_type: string;
+  allocated_storage: number;
+  publicly_accessible: boolean;
+  created_time: string;
+  tags: Record<string, string>;
+  // Computed fields
+  is_imported?: boolean;
+  existing_rds_id?: string;
+}
+
+/**
+ * Result of fetching RDS instances
+ */
+export interface IAWSRDSFetchResult {
+  success: boolean;
+  instances: IAWSRDSInstance[];
   error?: string;
   region: string;
 }

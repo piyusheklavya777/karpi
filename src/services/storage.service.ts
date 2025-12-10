@@ -10,6 +10,7 @@ import type {
   IServerConfig,
   IBackgroundProcess,
   IAWSProfile,
+  IRDSInstance,
 } from "../types";
 import {
   APP_VERSION,
@@ -36,6 +37,7 @@ export class StorageService {
         servers: [],
         processes: [],
         aws_profiles: [],
+        rds_instances: [],
         preferences: {
           theme: "dark",
           auto_logout_minutes: 30,
@@ -273,6 +275,67 @@ export class StorageService {
 
     this.config.set("aws_profiles", filtered);
     logger.debug(`AWS Profile deleted: ${id}`);
+    return true;
+  }
+
+  // RDS Instance management
+  getAllRDSInstances(): IRDSInstance[] {
+    return this.config.get("rds_instances", []);
+  }
+
+  getRDSInstance(id: string): IRDSInstance | undefined {
+    const instances = this.getAllRDSInstances();
+    return instances.find((r) => r.id === id);
+  }
+
+  getRDSByIdentifier(identifier: string): IRDSInstance | undefined {
+    const instances = this.getAllRDSInstances();
+    return instances.find((r) => r.db_instance_identifier === identifier);
+  }
+
+  getRDSByProfileId(profileId: string): IRDSInstance[] {
+    const instances = this.getAllRDSInstances();
+    return instances.filter((r) => r.profile_id === profileId);
+  }
+
+  saveRDSInstance(instance: IRDSInstance): void {
+    const instances = this.getAllRDSInstances();
+    const existingIndex = instances.findIndex((r) => r.id === instance.id);
+
+    if (existingIndex >= 0) {
+      instances[existingIndex] = instance;
+    } else {
+      instances.push(instance);
+    }
+
+    this.config.set("rds_instances", instances);
+    logger.debug(`RDS Instance saved: ${instance.name}`);
+  }
+
+  updateRDSInstance(id: string, updates: Partial<IRDSInstance>): boolean {
+    const instances = this.getAllRDSInstances();
+    const index = instances.findIndex((r) => r.id === id);
+
+    if (index === -1) {
+      return false;
+    }
+
+    instances[index] = { ...instances[index], ...updates };
+    this.config.set("rds_instances", instances);
+    logger.debug(`RDS Instance updated: ${id}`);
+    return true;
+  }
+
+  deleteRDSInstance(id: string): boolean {
+    const instances = this.getAllRDSInstances();
+    const filtered = instances.filter((r) => r.id !== id);
+
+    if (filtered.length === instances.length) {
+      return false;
+    }
+
+    this.config.set("rds_instances", filtered);
+    logger.debug(`RDS Instance deleted: ${id}`);
     return true;
   }
 

@@ -6,8 +6,21 @@ import {
   type DescribeInstancesCommandOutput,
   type Instance,
 } from "@aws-sdk/client-ec2";
+import {
+  RDSClient,
+  DescribeDBInstancesCommand,
+  type DescribeDBInstancesCommandOutput,
+  type DBInstance,
+} from "@aws-sdk/client-rds";
 import { fromIni } from "@aws-sdk/credential-providers";
-import type { IAWSProfile, IAWSInstance, IAWSFetchResult } from "../types";
+import type {
+  IAWSProfile,
+  IAWSInstance,
+  IAWSFetchResult,
+  IAWSRDSInstance,
+  IAWSRDSFetchResult,
+  TRDSEngine,
+} from "../types";
 import { storageService } from "./storage.service";
 import { logger } from "../utils/logger";
 
@@ -244,6 +257,233 @@ class AWSService {
   getSuggestedPemPath(instance: IAWSInstance): string {
     if (!instance.key_name) return "";
     return `~/.ssh/${instance.key_name}.pem`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // RDS Methods
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Create an RDS client with the given AWS profile credentials
+   */
+  private createRDSClient(awsProfile: IAWSProfile, region?: string): RDSClient {
+    const targetRegion = region || awsProfile.default_region;
+
+    if (awsProfile.auth_type === "cli_profile" && awsProfile.cli_profile_name) {
+      return new RDSClient({
+        region: targetRegion,
+        credentials: fromIni({ profile: awsProfile.cli_profile_name }),
+      });
+    } else if (
+      awsProfile.auth_type === "access_keys" &&
+      awsProfile.access_key_id &&
+      awsProfile.secret_access_key
+    ) {
+      return new RDSClient({
+        region: targetRegion,
+        credentials: {
+          accessKeyId: awsProfile.access_key_id,
+          secretAccessKey: awsProfile.secret_access_key,
+        },
+      });
+    }
+
+    throw new Error("Invalid AWS profile configuration");
+  }
+
+  /**
+   * Fetch RDS instances from AWS
+   */
+  async fetchRDSInstances(
+    awsProfileId: string,
+    region?: string
+  ): Promise<IAWSRDSFetchResult> {
+    const awsProfile = storageService.getAWSProfile(awsProfileId);
+    if (!awsProfile) {
+      return {
+        success: false,
+        instances: [],
+        error: "AWS profile not found",
+        region: region || "unknown",
+      };
+    }
+
+    const targetRegion = region || awsProfile.default_region;
+
+    try {
+      const client = this.createRDSClient(awsProfile, targetRegion);
+      const command = new DescribeDBInstancesCommand({});
+      const response: DescribeDBInstancesCommandOutput = await client.send(
+        command
+      );
+
+      const instances: IAWSRDSInstance[] = [];
+      const existingRDS = storageService.getAllRDSInstances();
+
+      if (response.DBInstances) {
+        for (const dbInstance of response.DBInstances) {
+          const rdsInstance = this.mapDBInstance(dbInstance);
+
+          // Check if already imported
+          const existing = existingRDS.find(
+            (r) =>
+              r.db_instance_identifier === rdsInstance.db_instance_identifier
+          );
+
+          if (existing) {
+            rdsInstance.is_imported = true;
+            rdsInstance.existing_rds_id = existing.id;
+          }
+
+          instances.push(rdsInstance);
+        }
+      }
+
+      // Update last_used timestamp
+      storageService.updateAWSProfile(awsProfileId, {
+        last_used: new Date().toISOString(),
+      });
+
+      logger.debug(
+        `Fetched ${instances.length} RDS instances from ${targetRegion}`
+      );
+
+      return {
+        success: true,
+        instances,
+        region: targetRegion,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      logger.error(`Failed to fetch RDS instances: ${errorMessage}`);
+
+      return {
+        success: false,
+        instances: [],
+        error: errorMessage,
+        region: targetRegion,
+      };
+    }
+  }
+
+  /**
+   * Map AWS SDK DBInstance to our IAWSRDSInstance interface
+   */
+  private mapDBInstance(db: DBInstance): IAWSRDSInstance {
+    // Build tags record
+    const tags: Record<string, string> = {};
+    if (db.TagList) {
+      for (const tag of db.TagList) {
+        if (tag.Key && tag.Value) {
+          tags[tag.Key] = tag.Value;
+        }
+      }
+    }
+
+    return {
+      db_instance_identifier: db.DBInstanceIdentifier || "",
+      db_instance_class: db.DBInstanceClass || "unknown",
+      engine: this.normalizeEngine(db.Engine || ""),
+      engine_version: db.EngineVersion || "",
+      status: db.DBInstanceStatus || "unknown",
+      endpoint: db.Endpoint?.Address,
+      port: db.Endpoint?.Port || this.getDefaultPort(db.Engine || ""),
+      db_name: db.DBName,
+      master_username: db.MasterUsername,
+      vpc_id: db.DBSubnetGroup?.VpcId,
+      availability_zone: db.AvailabilityZone,
+      multi_az: db.MultiAZ || false,
+      storage_type: db.StorageType || "gp2",
+      allocated_storage: db.AllocatedStorage || 0,
+      publicly_accessible: db.PubliclyAccessible || false,
+      created_time: db.InstanceCreateTime?.toISOString() || "",
+      tags,
+      is_imported: false,
+    };
+  }
+
+  /**
+   * Normalize engine name to our TRDSEngine type
+   */
+  private normalizeEngine(engine: string): TRDSEngine {
+    const normalized = engine.toLowerCase();
+    if (normalized.includes("postgres")) return "postgres";
+    if (normalized.includes("aurora") && normalized.includes("postgresql"))
+      return "aurora-postgresql";
+    if (normalized.includes("aurora") && normalized.includes("mysql"))
+      return "aurora-mysql";
+    if (normalized.includes("mysql")) return "mysql";
+    if (normalized.includes("mariadb")) return "mariadb";
+    if (normalized.includes("sqlserver")) {
+      if (normalized.includes("ee")) return "sqlserver-ee";
+      if (normalized.includes("se")) return "sqlserver-se";
+      if (normalized.includes("web")) return "sqlserver-web";
+      return "sqlserver-ex";
+    }
+    if (normalized.includes("oracle")) {
+      if (normalized.includes("ee")) return "oracle-ee";
+      return "oracle-se2";
+    }
+    return "postgres"; // Default fallback
+  }
+
+  /**
+   * Get default port for database engine
+   */
+  getDefaultPort(engine: string): number {
+    const normalized = engine.toLowerCase();
+    if (
+      normalized.includes("postgres") ||
+      normalized.includes("aurora-postgresql")
+    )
+      return 5432;
+    if (
+      normalized.includes("mysql") ||
+      normalized.includes("aurora-mysql") ||
+      normalized.includes("mariadb")
+    )
+      return 3306;
+    if (normalized.includes("sqlserver")) return 1433;
+    if (normalized.includes("oracle")) return 1521;
+    return 5432; // Default to PostgreSQL port
+  }
+
+  /**
+   * Get engine display name
+   */
+  getEngineDisplayName(engine: TRDSEngine): string {
+    const displayNames: Record<TRDSEngine, string> = {
+      postgres: "PostgreSQL",
+      mysql: "MySQL",
+      mariadb: "MariaDB",
+      "aurora-postgresql": "Aurora PostgreSQL",
+      "aurora-mysql": "Aurora MySQL",
+      "sqlserver-ex": "SQL Server Express",
+      "sqlserver-web": "SQL Server Web",
+      "sqlserver-se": "SQL Server Standard",
+      "sqlserver-ee": "SQL Server Enterprise",
+      "oracle-se2": "Oracle SE2",
+      "oracle-ee": "Oracle Enterprise",
+    };
+    return displayNames[engine] || engine;
+  }
+
+  /**
+   * Get engine icon
+   */
+  getEngineIcon(engine: TRDSEngine): string {
+    if (engine.includes("postgres") || engine === "aurora-postgresql")
+      return "🐘";
+    if (
+      engine.includes("mysql") ||
+      engine === "aurora-mysql" ||
+      engine === "mariadb"
+    )
+      return "🐬";
+    if (engine.includes("sqlserver")) return "🪟";
+    if (engine.includes("oracle")) return "🔶";
+    return "🗄️";
   }
 }
 
