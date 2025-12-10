@@ -1,26 +1,34 @@
 // src/services/auth.service.ts
 
-import keytar from 'keytar';
-import type { IAuthCredentials, ILoginResponse, ISession, IUserProfile } from '../types';
-import { KEYCHAIN_SERVICE } from '../config/constants';
-import { CryptoUtil } from '../utils/crypto';
-import { logger } from '../utils/logger';
-import { storageService } from './storage.service';
-import { profileService } from './profile.service';
-import { ZODLoginCredentialsSchema } from '../utils/validators';
+import { keychain } from "../utils/keychain";
+import type {
+  IAuthCredentials,
+  ILoginResponse,
+  ISession,
+  IUserProfile,
+} from "../types";
+import { KEYCHAIN_SERVICE } from "../config/constants";
+import { CryptoUtil } from "../utils/crypto";
+import { logger } from "../utils/logger";
+import { storageService } from "./storage.service";
+import { profileService } from "./profile.service";
+import { ZODLoginCredentialsSchema } from "../utils/validators";
 
 export class AuthService {
   /**
    * Register a new user profile
    */
-  async register(credentials: IAuthCredentials, email?: string): Promise<ILoginResponse> {
+  async register(
+    credentials: IAuthCredentials,
+    email?: string
+  ): Promise<ILoginResponse> {
     // Validate credentials
     try {
       ZODLoginCredentialsSchema.parse(credentials);
     } catch (error) {
       return {
         success: false,
-        error: 'Invalid credentials format',
+        error: "Invalid credentials format",
       };
     }
 
@@ -28,7 +36,7 @@ export class AuthService {
     if (profileService.usernameExists(credentials.username)) {
       return {
         success: false,
-        error: 'Username already exists',
+        error: "Username already exists",
       };
     }
 
@@ -39,8 +47,8 @@ export class AuthService {
       // Create profile
       const profile = profileService.createProfile(credentials.username, email);
 
-      // Store password in keychain
-      await keytar.setPassword(
+      // Store password in keychain (macOS security CLI)
+      await keychain.setPassword(
         KEYCHAIN_SERVICE,
         credentials.username,
         passwordHash
@@ -61,10 +69,10 @@ export class AuthService {
         session,
       };
     } catch (error) {
-      logger.error('Registration failed', error);
+      logger.error("Registration failed", error);
       return {
         success: false,
-        error: 'Registration failed',
+        error: "Registration failed",
       };
     }
   }
@@ -79,7 +87,7 @@ export class AuthService {
     } catch (error) {
       return {
         success: false,
-        error: 'Invalid credentials format',
+        error: "Invalid credentials format",
       };
     }
 
@@ -89,12 +97,12 @@ export class AuthService {
       if (!profile) {
         return {
           success: false,
-          error: 'Invalid username or password',
+          error: "Invalid username or password",
         };
       }
 
       // Get stored password hash
-      const storedHash = await keytar.getPassword(
+      const storedHash = await keychain.getPassword(
         KEYCHAIN_SERVICE,
         credentials.username
       );
@@ -102,7 +110,7 @@ export class AuthService {
       if (!storedHash) {
         return {
           success: false,
-          error: 'Invalid username or password',
+          error: "Invalid username or password",
         };
       }
 
@@ -115,7 +123,7 @@ export class AuthService {
       if (!isValid) {
         return {
           success: false,
-          error: 'Invalid username or password',
+          error: "Invalid username or password",
         };
       }
 
@@ -142,10 +150,10 @@ export class AuthService {
         session,
       };
     } catch (error) {
-      logger.error('Login failed', error);
+      logger.error("Login failed", error);
       return {
         success: false,
-        error: 'Login failed',
+        error: "Login failed",
       };
     }
   }
@@ -155,9 +163,9 @@ export class AuthService {
    */
   logout(): boolean {
     const activeProfile = profileService.getActiveProfile();
-    
+
     if (!activeProfile) {
-      logger.warn('No active profile to logout');
+      logger.warn("No active profile to logout");
       return false;
     }
 
@@ -177,7 +185,7 @@ export class AuthService {
   logoutAll(): void {
     storageService.deleteAllSessions();
     profileService.clearActiveProfile();
-    logger.success('All sessions logged out');
+    logger.success("All sessions logged out");
   }
 
   /**
@@ -224,7 +232,7 @@ export class AuthService {
   ): Promise<boolean> {
     try {
       // Verify old password
-      const storedHash = await keytar.getPassword(KEYCHAIN_SERVICE, username);
+      const storedHash = await keychain.getPassword(KEYCHAIN_SERVICE, username);
       if (!storedHash) return false;
 
       const isValid = await CryptoUtil.comparePassword(oldPassword, storedHash);
@@ -232,12 +240,12 @@ export class AuthService {
 
       // Hash and store new password
       const newHash = await CryptoUtil.hashPassword(newPassword);
-      await keytar.setPassword(KEYCHAIN_SERVICE, username, newHash);
+      await keychain.setPassword(KEYCHAIN_SERVICE, username, newHash);
 
       logger.success(`Password changed for: ${username}`);
       return true;
     } catch (error) {
-      logger.error('Password change failed', error);
+      logger.error("Password change failed", error);
       return false;
     }
   }
@@ -247,11 +255,11 @@ export class AuthService {
    */
   async deleteCredentials(username: string): Promise<boolean> {
     try {
-      await keytar.deletePassword(KEYCHAIN_SERVICE, username);
+      await keychain.deletePassword(KEYCHAIN_SERVICE, username);
       logger.info(`Credentials deleted for: ${username}`);
       return true;
     } catch (error) {
-      logger.error('Failed to delete credentials', error);
+      logger.error("Failed to delete credentials", error);
       return false;
     }
   }

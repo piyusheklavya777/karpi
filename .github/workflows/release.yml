@@ -21,19 +21,8 @@ jobs:
         with:
           bun-version: "latest"
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies (npm)
-        run: npm install
-
-      - name: Rebuild keytar native module
-        run: npm rebuild keytar --build-from-source
-
-      - name: Verify keytar build output
-        run: ls -lah node_modules/keytar/build/Release || (echo 'keytar build missing' && exit 1)
+      - name: Install dependencies
+        run: bun install
 
       - name: Build binary
         run: bun run build:binary
@@ -52,7 +41,7 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           mkdir -p dist
           cd dist
-          tar czf "karpi-v${VERSION}.tar.gz" karpi keytar-*.node
+          tar czf "karpi-v${VERSION}.tar.gz" karpi
           SHA=$(shasum -a 256 "karpi-v${VERSION}.tar.gz" | awk '{print $1}')
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
 
