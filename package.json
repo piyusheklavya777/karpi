@@ -1,6 +1,6 @@
 {
   "name": "karpi",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Developer Productivity CLI - Unleash Your Potential",
   "main": "src/index.ts",
   "module": "src/index.ts",
@@ -33,7 +33,6 @@
     "commander": "^11.1.0",
     "conf": "^12.0.0",
     "date-fns": "^3.0.0",
-    "figlet": "^1.7.0",
     "gradient-string": "^2.0.2",
     "ink": "^4.4.1",
     "inquirer": "^9.2.12",
@@ -46,7 +45,6 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/bun": "latest",
-    "@types/figlet": "^1.5.8",
     "@types/gradient-string": "^1.1.5",
     "@types/inquirer": "^9.0.9",
     "@types/jsonwebtoken": "^9.0.5",
