@@ -12,6 +12,7 @@ import { storageService } from "../../services/storage.service";
 import { serversMenu } from "./servers";
 import { awsProfilesMenu } from "./aws-profiles";
 import { rdsMenu } from "./rds";
+import { utilitiesMenu } from "./utilities";
 import { serverService } from "../../services/server.service";
 import type {
   IRecentAction,
@@ -39,7 +40,7 @@ const MENU_ICONS = {
   SERVERS: "🖥️ ",
   AWS: "☁️ ",
   RDS: "🗄️ ",
-  STATS: "📊",
+  UTILITIES: "🔧",
   PROFILE: "👤",
   LOGOUT: "🚪",
   EXIT: "👋",
@@ -107,6 +108,12 @@ export async function dashboardCommand(): Promise<void> {
         "AWS Profiles"
       )}           ${chalk.dim("Manage AWS credentials")}`,
       value: { type: "standard", data: "aws" },
+    });
+    choices.push({
+      name: `  ${MENU_ICONS.UTILITIES} ${chalk.bold(
+        "Utilities"
+      )}              ${chalk.dim("Port tools & more")}`,
+      value: { type: "standard", data: "utilities" },
     });
 
     // ═══════════════════════════════════════════════════════════
@@ -219,6 +226,9 @@ export async function dashboardCommand(): Promise<void> {
           break;
         case "rds":
           await rdsMenu();
+          break;
+        case "utilities":
+          await utilitiesMenu();
           break;
         case "profile":
           displayProfileInfo(current.profile);

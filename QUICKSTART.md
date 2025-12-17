@@ -57,6 +57,7 @@ bun run build:binary
    ```bash
    git add -A && git commit -m "v1.3.3: your changes" && git push
    ```
+   
 
 4. **Automatic Release:** The GitHub Action will:
    - Build the binary
