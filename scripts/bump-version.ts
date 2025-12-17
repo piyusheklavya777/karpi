@@ -38,7 +38,7 @@ function updateConstantsVersion(newVersion: string): void {
   const raw = fs.readFileSync(constantsPath, "utf8");
 
   const updated = raw.replace(
-    /(export const APP_VERSION = ')[^']+(';)/,
+    /(export const APP_VERSION = ["'])[^"']+(["'];)/,
     `$1${newVersion}$2`
   );
 
