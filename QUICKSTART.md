@@ -2,114 +2,78 @@
 
 ## Installation
 
+### Via Homebrew (Recommended)
 ```bash
-cd /Users/piyusheklavya/Documents/GitHub/karpi
+brew tap piyusheklavya777/tap
+brew install karpi
+```
+
+### Update to Latest Version
+```bash
+brew update && brew upgrade karpi
+```
+
+## Usage
+
+```bash
+# Start karpi
+karpi
+
+# Or specific commands
+karpi login
+karpi dashboard
+karpi logout
+```
+
+## Development
+
+### Setup
+```bash
+git clone https://github.com/piyusheklavya777/karpi.git
+cd karpi
 bun install
 ```
 
-## Running Karpi
-
-### Development Mode (Recommended for testing)
+### Run in Dev Mode
 ```bash
 bun run dev
 ```
 
-### Production Mode
+### Build Binary
 ```bash
-# Build first
-bun run build
-
-# Then run
-bun run start
+bun run build:binary
 ```
 
-### Direct Execution (with Bun)
-```bash
-bun src/index.ts
-```
+## Publishing a New Version
 
-## First Time Usage
+1. **Make your changes** and commit to `main`
 
-1. **Start the app:**
+2. **Bump version:**
    ```bash
-   bun run dev
+   bun run bump:version 1.3.3
    ```
 
-2. **Create your first profile:**
-   - The app will detect no profiles exist
-   - Choose "Create New Profile"
-   - Enter a username (e.g., `john_doe`)
-   - Optionally enter your email
-   - Create a password (min 6 characters)
-   - Confirm the password
+3. **Push to GitHub:**
+   ```bash
+   git add -A && git commit -m "v1.3.3: your changes" && git push
+   ```
 
-3. **You're in!** The dashboard will load automatically
+4. **Automatic Release:** The GitHub Action will:
+   - Build the binary
+   - Create a GitHub release with tarball
+   - Update the [homebrew-tap](https://github.com/piyusheklavya777/homebrew-tap) formula
 
-## Available Commands
+5. **Users update via:**
+   ```bash
+   brew update && brew upgrade karpi
+   ```
 
-```bash
-# Show help
-bun run dev -- --help
+## Reset Data
 
-# Login (or create profile)
-bun run dev -- login
-
-# Open dashboard
-bun run dev -- dashboard
-
-# Logout
-bun run dev -- logout
-
-# Logout all sessions
-bun run dev -- logout --all
-```
-
-## Color Scheme Preview
-
-The CLI uses these beautiful colors:
-- **Bottle Green** (#2d5016) - Primary text and branding
-- **Bright Blue** (#00bfff) - Accents and highlights
-- **Black** (#000000) - Background
-
-## Testing Multiple Profiles
-
-You can create multiple profiles to test profile switching:
-
-1. Create first profile: `alice`
-2. Logout
-3. Login again and create another profile: `bob`
-4. When you login next time, you'll see both profiles to choose from
-
-## Troubleshooting
-
-### Keychain Access Issues
-If you get keychain errors on macOS, you may need to:
-1. Allow Bun to access the keychain when prompted
-2. Or temporarily use the development mode which has fallback mechanisms
-
-### Reset Everything
-To start fresh:
+To start fresh, remove the config directory:
 ```bash
 rm -rf ~/.karpi
 ```
-
-This removes all profiles and sessions (passwords in keychain will remain until manually deleted).
-
-## File Structure
-
-```
-~/.karpi/
-└── config.json    # Your profiles and session data
-```
-
-Passwords are stored securely in macOS Keychain under service name: `karpi-cli`
-
-## Next Steps
-
-- Explore the dashboard menu
-- Check out the profile settings
-- View your stats
-- Try the quick actions menu (features coming soon!)
 
 ---
 
