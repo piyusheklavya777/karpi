@@ -80,7 +80,7 @@ export async function rdsMenu(): Promise<void> {
     const { action } = await inquirer.prompt({
       type: "list",
       name: "action",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)("Select an option:"),
+      message: chalk.hex(COLORS.SECONDARY)("Select an option:"),
       choices,
       pageSize: 15,
     });
@@ -125,7 +125,7 @@ async function rdsActionsMenu(rdsId: string): Promise<void> {
     const { action } = await inquirer.prompt({
       type: "list",
       name: "action",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)("Action:"),
+      message: chalk.hex(COLORS.SECONDARY)("Action:"),
       choices,
       pageSize: 15,
     });
@@ -149,6 +149,9 @@ async function rdsActionsMenu(rdsId: string): Promise<void> {
       case "copy_connection":
         await copyConnectionString(rds);
         break;
+      case "edit":
+        await editRDSFlow(rds);
+        break;
       case "delete":
         const deleted = await deleteRDSFlow(rds);
         if (deleted) running = false;
@@ -166,7 +169,7 @@ async function rdsActionsMenu(rdsId: string): Promise<void> {
 
 function displayHeader(): void {
   const header = boxen(
-    chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.DATABASE} RDS Databases`),
+    chalk.hex(COLORS.PRIMARY).bold(`${ICONS.DATABASE} RDS Databases`),
     {
       padding: { left: 2, right: 2, top: 0, bottom: 0 },
       borderStyle: "round",
@@ -181,7 +184,7 @@ function displayEmptyState(): void {
   console.log(
     boxen(
       chalk.dim("No RDS databases configured.\n\n") +
-        chalk.hex(COLORS.BRIGHT_BLUE)(
+        chalk.hex(COLORS.SECONDARY)(
           "Add a database to manage connections and tunnels."
         ),
       {
@@ -199,7 +202,7 @@ function displayRDSHeader(rds: IRDSInstance): void {
   const engineName = awsService.getEngineDisplayName(rds.engine);
 
   const header = boxen(
-    chalk.hex(COLORS.BOTTLE_GREEN).bold(`${engineIcon} ${rds.name}`) +
+    chalk.hex(COLORS.PRIMARY).bold(`${engineIcon} ${rds.name}`) +
       "\n" +
       chalk.dim(`${engineName} ${rds.engine_version}`),
     {
@@ -306,7 +309,7 @@ function buildMainMenuChoices(
         rds.linked_tunnel_id &&
         processes.some((p) => p.tunnelId === rds.linked_tunnel_id);
 
-      let displayName = `${engineIcon}  ${chalk.bold.hex(COLORS.BOTTLE_GREEN)(
+      let displayName = `${engineIcon}  ${chalk.bold.hex(COLORS.PRIMARY)(
         rds.name
       )}`;
 
@@ -336,7 +339,7 @@ function buildMainMenuChoices(
   choices.push(
     new inquirer.Separator(chalk.dim("─── Actions ───────────────────────")),
     {
-      name: `${ICONS.ADD}  ${chalk.hex(COLORS.BRIGHT_BLUE)(
+      name: `${ICONS.ADD}  ${chalk.hex(COLORS.SECONDARY)(
         "Add RDS Database"
       )}`,
       value: "add_rds",
@@ -384,7 +387,7 @@ function buildRDSActionsChoices(
 
   // Copy connection string
   choices.push({
-    name: `${ICONS.COPY}  ${chalk.hex(COLORS.BRIGHT_BLUE)(
+    name: `${ICONS.COPY}  ${chalk.hex(COLORS.SECONDARY)(
       "Copy Connection String"
     )}`,
     value: "copy_connection",
@@ -408,6 +411,15 @@ function buildRDSActionsChoices(
       value: "link_server",
     });
   }
+
+  // Edit option
+  choices.push(
+    new inquirer.Separator(chalk.dim("─── Settings ──────────────────────")),
+    {
+      name: `✏️  ${chalk.cyan("Edit Database")}`,
+      value: "edit",
+    }
+  );
 
   // Danger zone
   choices.push(
@@ -434,7 +446,7 @@ async function addRDSFlow(): Promise<void> {
   console.clear();
   console.log(
     boxen(
-      chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.ADD} Add RDS Database`),
+      chalk.hex(COLORS.PRIMARY).bold(`${ICONS.ADD} Add RDS Database`),
       {
         padding: { left: 2, right: 2, top: 0, bottom: 0 },
         borderStyle: "round",
@@ -598,7 +610,7 @@ async function fetchRDSFromAWS(): Promise<void> {
     boxen(
       [
         chalk
-          .hex(COLORS.BOTTLE_GREEN)
+          .hex(COLORS.PRIMARY)
           .bold(`${engineIcon} ${instance.db_instance_identifier}`),
         "",
         chalk.dim("Engine: ") +
@@ -991,7 +1003,7 @@ async function connectToRDS(rds: IRDSInstance): Promise<void> {
   console.log(
     boxen(
       [
-        chalk.hex(COLORS.BOTTLE_GREEN).bold("Connection Info"),
+        chalk.hex(COLORS.PRIMARY).bold("Connection Info"),
         "",
         chalk.dim("Host: ") + chalk.white(host),
         chalk.dim("Port: ") +
@@ -1035,6 +1047,92 @@ async function copyConnectionString(rds: IRDSInstance): Promise<void> {
   await clipboard.write(connectionString);
   console.log(chalk.green(`\n${ICONS.COPY} Connection string copied!`));
   console.log(chalk.dim(connectionString));
+  await pressEnterToContinue();
+}
+
+async function editRDSFlow(rds: IRDSInstance): Promise<void> {
+  console.clear();
+  console.log(
+    boxen(chalk.hex(COLORS.PRIMARY).bold(`✏️ Edit Database`), {
+      padding: { left: 2, right: 2, top: 0, bottom: 0 },
+      borderStyle: "round",
+      borderColor: "cyan",
+    })
+  );
+  console.log();
+
+  const answers = await inquirer.prompt([
+    {
+      type: "input",
+      name: "name",
+      message: chalk.hex(COLORS.SECONDARY)("Database Alias:"),
+      default: rds.name,
+      validate: (input: string) =>
+        input.trim().length > 0 || "Name is required",
+    },
+    {
+      type: "input",
+      name: "endpoint",
+      message: chalk.hex(COLORS.SECONDARY)("RDS Endpoint:"),
+      default: rds.endpoint,
+      validate: (input: string) =>
+        input.trim().length > 0 || "Endpoint is required",
+    },
+    {
+      type: "number",
+      name: "port",
+      message: chalk.hex(COLORS.SECONDARY)("Port:"),
+      default: rds.port,
+      validate: (input: number) =>
+        (input > 0 && input < 65536) || "Invalid port",
+    },
+    {
+      type: "input",
+      name: "db_name",
+      message: chalk.hex(COLORS.SECONDARY)("Database Name (optional):"),
+      default: rds.db_name || "",
+    },
+    {
+      type: "input",
+      name: "master_username",
+      message: chalk.hex(COLORS.SECONDARY)("Master Username (optional):"),
+      default: rds.master_username || "",
+    },
+    {
+      type: "number",
+      name: "local_port",
+      message: chalk.hex(COLORS.SECONDARY)("Local Tunnel Port:"),
+      default: rds.local_port || rds.port,
+      validate: (input: number) =>
+        (input > 0 && input < 65536) || "Invalid port",
+    },
+  ]);
+
+  storageService.updateRDSInstance(rds.id, {
+    name: answers.name.trim(),
+    endpoint: answers.endpoint.trim(),
+    port: answers.port,
+    db_name: answers.db_name.trim() || undefined,
+    master_username: answers.master_username.trim() || undefined,
+    local_port: answers.local_port,
+  });
+
+  // If linked to a server, update the tunnel as well
+  if (rds.linked_server_id && rds.linked_tunnel_id) {
+    await serverService.updateTunnel(
+      rds.linked_server_id,
+      rds.linked_tunnel_id,
+      {
+        remoteHost: answers.endpoint.trim(),
+        remotePort: answers.port,
+        localPort: answers.local_port,
+      }
+    );
+  }
+
+  console.log(
+    chalk.green(`\n${UI.ICONS.SUCCESS} Database updated successfully!`)
+  );
   await pressEnterToContinue();
 }
 

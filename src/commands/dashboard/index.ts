@@ -86,9 +86,7 @@ export async function dashboardCommand(): Promise<void> {
     // ═══════════════════════════════════════════════════════════
 
     choices.push(
-      new inquirer.Separator(
-        chalk.hex(COLORS.BRIGHT_BLUE).bold("  ▸ MAIN MENU")
-      )
+      new inquirer.Separator(chalk.hex(COLORS.SECONDARY).bold("  ▸ MAIN MENU"))
     );
     choices.push(new inquirer.Separator(chalk.dim("  ")));
 
@@ -119,7 +117,7 @@ export async function dashboardCommand(): Promise<void> {
       choices.push(new inquirer.Separator(chalk.dim("  ")));
       choices.push(
         new inquirer.Separator(
-          chalk.hex(COLORS.BOTTLE_GREEN).bold("  ▸ QUICK ACTIONS")
+          chalk.hex(COLORS.SECONDARY).bold("  ▸ QUICK ACTIONS")
         )
       );
       choices.push(new inquirer.Separator(chalk.dim("  ")));
@@ -161,10 +159,6 @@ export async function dashboardCommand(): Promise<void> {
     choices.push(new inquirer.Separator(chalk.dim("  ")));
 
     choices.push({
-      name: `  ${MENU_ICONS.STATS} ${chalk.white("View Stats")}`,
-      value: { type: "standard", data: "stats" },
-    });
-    choices.push({
       name: `  ${MENU_ICONS.PROFILE} ${chalk.white("Profile Settings")}`,
       value: { type: "standard", data: "profile" },
     });
@@ -187,7 +181,7 @@ export async function dashboardCommand(): Promise<void> {
       {
         type: "list",
         name: "selection",
-        message: chalk.hex(COLORS.BRIGHT_BLUE)("Select an option:"),
+        message: chalk.hex(COLORS.SECONDARY)("Select an option:"),
         pageSize: 20,
         choices: choices,
       },
@@ -225,10 +219,6 @@ export async function dashboardCommand(): Promise<void> {
           break;
         case "rds":
           await rdsMenu();
-          break;
-        case "stats":
-          displayStats(current.profile);
-          await waitForEnter();
           break;
         case "profile":
           displayProfileInfo(current.profile);
@@ -279,12 +269,12 @@ function displayDashboard(profile: IUserProfile): void {
   // Display gradient logo
   const logoLines = LOGO.split("\n");
   const gradientColors = [
-    chalk.hex("#00bfff"), // Bright blue
-    chalk.hex("#00d4ff"),
-    chalk.hex("#00e8ff"),
-    chalk.hex("#2d5016"), // Bottle green
-    chalk.hex("#3a6b1c"),
-    chalk.hex("#4a7c2c"),
+    chalk.hex("#FFFFFF"), // White
+    chalk.hex("#FFF0F5"), // Lavender blush
+    chalk.hex("#FFD9E8"), // Very pale pink
+    chalk.hex("#FFC0CB"), // Soft pink
+    chalk.hex("#FFB6C1"), // Light pink
+    chalk.hex("#FF69B4"), // Hot pink (primary)
   ];
 
   console.log();
@@ -297,7 +287,7 @@ function displayDashboard(profile: IUserProfile): void {
   console.log();
   console.log(chalk.dim("  ─────────────────────────────────────────"));
   console.log(
-    chalk.hex(COLORS.BRIGHT_BLUE)("  ✨ Developer Productivity Unleashed")
+    chalk.hex(COLORS.SECONDARY)("  ✨ Developer Productivity Unleashed")
   );
   console.log(chalk.dim("  ─────────────────────────────────────────"));
   console.log();
@@ -309,7 +299,7 @@ function displayDashboard(profile: IUserProfile): void {
 
   const welcomeContent = [
     chalk.white.bold(
-      `👋 Welcome back, ${chalk.hex(COLORS.BOTTLE_GREEN)(profile.username)}`
+      `👋 Welcome back, ${chalk.hex(COLORS.PRIMARY)(profile.username)}`
     ),
     "",
     chalk.dim("Last login: ") +
@@ -328,46 +318,12 @@ function displayDashboard(profile: IUserProfile): void {
     boxen(welcomeContent, {
       padding: { left: 2, right: 2, top: 1, bottom: 1 },
       borderStyle: "round",
-      borderColor: "cyan",
+      borderColor: "#FF69B4",
       dimBorder: false,
     })
   );
   console.log();
 }
-
-function displayStats(profile: any): void {
-  const servers = serverService.listServers();
-  const totalServers = servers.length;
-  const totalTunnels = servers.reduce(
-    (sum, server) => sum + (server.tunnels ? server.tunnels.length : 0),
-    0
-  );
-  const recentActionsCount = Array.isArray(profile.recent_actions)
-    ? profile.recent_actions.length
-    : 0;
-
-  const stats = `
-${styled.title("📊 Your Infra Stats")}
-
-${styled.label("Account Created:")} ${styled.value(
-    format(new Date(profile.created_at), "PPP")
-  )}
-${styled.label("Servers Configured:")} ${styled.value(String(totalServers))}
-${styled.label("Tunnels Configured:")} ${styled.value(String(totalTunnels))}
-${styled.label("Recent Actions:")} ${styled.value(String(recentActionsCount))}
-`;
-
-  console.log(
-    boxen(stats, {
-      padding: 1,
-      margin: 1,
-      borderStyle: "round",
-      borderColor: COLORS.BRIGHT_BLUE,
-    })
-  );
-}
-
-// Removed displayQuickActions since it's now integrated
 
 function displayProfileInfo(profile: any): void {
   const info = `
@@ -393,7 +349,7 @@ ${styled.label("Auto Logout:")} ${styled.value(
       padding: 1,
       margin: 1,
       borderStyle: "round",
-      borderColor: COLORS.BOTTLE_GREEN,
+      borderColor: COLORS.PRIMARY,
     })
   );
 }

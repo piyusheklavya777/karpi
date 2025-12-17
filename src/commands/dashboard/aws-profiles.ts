@@ -51,7 +51,7 @@ export async function awsProfilesMenu(): Promise<void> {
     const { action } = await inquirer.prompt({
       type: "list",
       name: "action",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)("Select an option:"),
+      message: chalk.hex(COLORS.SECONDARY)("Select an option:"),
       choices,
       pageSize: 15,
     });
@@ -86,7 +86,7 @@ async function awsProfileActionsMenu(profileId: string): Promise<void> {
     const { action } = await inquirer.prompt({
       type: "list",
       name: "action",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)("Select an action:"),
+      message: chalk.hex(COLORS.SECONDARY)("Select an action:"),
       choices,
       pageSize: 12,
     });
@@ -117,7 +117,7 @@ async function addAWSProfileFlow(): Promise<void> {
   console.clear();
   console.log(
     boxen(
-      chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.PLUS} Add AWS Profile`),
+      chalk.hex(COLORS.PRIMARY).bold(`${ICONS.PLUS} Add AWS Profile`),
       {
         padding: { left: 2, right: 2, top: 0, bottom: 0 },
         borderStyle: "round",
@@ -291,7 +291,7 @@ async function editProfileFlow(profile: IAWSProfile): Promise<void> {
   console.clear();
   console.log(
     boxen(
-      chalk.hex(COLORS.BRIGHT_BLUE).bold(`${ICONS.EDIT} Edit AWS Profile`),
+      chalk.hex(COLORS.SECONDARY).bold(`${ICONS.EDIT} Edit AWS Profile`),
       {
         padding: { left: 2, right: 2, top: 0, bottom: 0 },
         borderStyle: "round",
@@ -447,7 +447,7 @@ async function deleteProfileFlow(profile: IAWSProfile): Promise<boolean> {
 
 function displayHeader(): void {
   const header = boxen(
-    chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.AWS} AWS Profiles`),
+    chalk.hex(COLORS.PRIMARY).bold(`${ICONS.AWS} AWS Profiles`),
     {
       padding: { left: 2, right: 2, top: 0, bottom: 0 },
       borderStyle: "round",
@@ -462,7 +462,7 @@ function displayEmptyState(): void {
   console.log(
     boxen(
       chalk.dim("No AWS profiles configured.\n") +
-        chalk.hex(COLORS.BRIGHT_BLUE)(
+        chalk.hex(COLORS.SECONDARY)(
           "Add a profile to fetch EC2 instances from AWS."
         ),
       {
@@ -482,7 +482,7 @@ function displayProfileHeader(profile: IAWSProfile): void {
       : `Access Key: ${profile.access_key_id?.slice(0, 8)}...`;
 
   const content = [
-    chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.AWS} ${profile.name}`),
+    chalk.hex(COLORS.PRIMARY).bold(`${ICONS.AWS} ${profile.name}`),
     "",
     chalk.dim("Authentication: ") + chalk.white(authInfo),
     chalk.dim("Region: ") + chalk.white(profile.default_region),
@@ -538,7 +538,7 @@ function buildMainMenuChoices(
     new inquirer.Separator(chalk.dim("─── Actions ───────────────────────"))
   );
   choices.push({
-    name: `${ICONS.PLUS}  ${chalk.hex(COLORS.BOTTLE_GREEN)("Add AWS Profile")}`,
+    name: `${ICONS.PLUS}  ${chalk.hex(COLORS.PRIMARY)("Add AWS Profile")}`,
     value: "add_profile",
   });
 
@@ -560,14 +560,14 @@ function buildProfileActionsChoices(
     [];
 
   choices.push({
-    name: `${ICONS.TEST}  ${chalk.hex(COLORS.BOTTLE_GREEN)(
+    name: `${ICONS.TEST}  ${chalk.hex(COLORS.PRIMARY)(
       "Test Credentials"
     )}`,
     value: "test",
   });
 
   choices.push({
-    name: `${ICONS.EDIT}  ${chalk.hex(COLORS.BRIGHT_BLUE)("Edit Profile")}`,
+    name: `${ICONS.EDIT}  ${chalk.hex(COLORS.SECONDARY)("Edit Profile")}`,
     value: "edit",
   });
 

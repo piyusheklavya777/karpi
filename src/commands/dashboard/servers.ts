@@ -83,7 +83,7 @@ export async function serversMenu(): Promise<void> {
       {
         type: "list",
         name: "action",
-        message: chalk.hex(COLORS.BRIGHT_BLUE)("Select an option:"),
+        message: chalk.hex(COLORS.SECONDARY)("Select an option:"),
         choices,
         pageSize: 15,
       },
@@ -128,7 +128,7 @@ async function serverActionsMenu(serverId: string): Promise<void> {
       {
         type: "list",
         name: "action",
-        message: chalk.hex(COLORS.BRIGHT_BLUE)("Action:"),
+        message: chalk.hex(COLORS.SECONDARY)("Action:"),
         choices,
         pageSize: 15,
       },
@@ -146,6 +146,9 @@ async function serverActionsMenu(serverId: string): Promise<void> {
         break;
       case "unlink_aws":
         await unlinkAWSProfileFlow(serverId);
+        break;
+      case "edit_server":
+        await editServerFlow(serverId);
         break;
       case "delete_server":
         const deleted = await deleteServerFlow(serverId);
@@ -208,6 +211,7 @@ async function tunnelActionsMenu(
 
   choices.push(
     { name: `${ICONS.COPY}  Copy SSH Command`, value: "copy" },
+    { name: `${ICONS.EDIT}  Edit Tunnel`, value: "edit" },
     new inquirer.Separator(chalk.dim("─────────────────────")),
     { name: `${ICONS.DELETE}  ${chalk.red("Delete Tunnel")}`, value: "delete" },
     new inquirer.Separator(chalk.dim("─────────────────────")),
@@ -218,7 +222,7 @@ async function tunnelActionsMenu(
     {
       type: "list",
       name: "action",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)("Tunnel Action:"),
+      message: chalk.hex(COLORS.SECONDARY)("Tunnel Action:"),
       choices,
     },
   ]);
@@ -233,6 +237,9 @@ async function tunnelActionsMenu(
     case "copy":
       await copyTunnelCommand(serverId, tunnelId);
       break;
+    case "edit":
+      await editTunnelFlow(serverId, tunnelId);
+      break;
     case "delete":
       await deleteTunnel(serverId, tunnelId);
       break;
@@ -244,10 +251,10 @@ async function tunnelActionsMenu(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function displayHeader(): void {
-  const title = chalk.bold.hex(COLORS.BOTTLE_GREEN)(
+  const title = chalk.bold.hex(COLORS.PRIMARY)(
     `${ICONS.SERVER}  Remote Server Management`
   );
-  const border = chalk.hex(COLORS.BRIGHT_BLUE)(BOX_CHARS.HORIZONTAL.repeat(50));
+  const border = chalk.hex(COLORS.SECONDARY)(BOX_CHARS.HORIZONTAL.repeat(50));
 
   console.log("\n" + border);
   console.log(title);
@@ -257,11 +264,11 @@ function displayHeader(): void {
 function displayEmptyState(): void {
   console.log(
     boxen(
-      chalk.hex(COLORS.BRIGHT_BLUE)("No servers configured yet.\n\n") +
+      chalk.hex(COLORS.SECONDARY)("No servers configured yet.\n\n") +
         chalk.dim("Press ") +
         chalk.white("↓") +
         chalk.dim(" to select ") +
-        chalk.hex(COLORS.BOTTLE_GREEN)('"Add New Server"') +
+        chalk.hex(COLORS.PRIMARY)('"Add New Server"') +
         chalk.dim(" to get started."),
       {
         padding: 1,
@@ -283,11 +290,11 @@ function displayServerHeader(
       ? chalk.bgGreen.black(` ${activeCount} ACTIVE `)
       : chalk.bgGray.white(" IDLE ");
 
-  const title = `${ICONS.SERVER}  ${chalk.bold.hex(COLORS.BOTTLE_GREEN)(
+  const title = `${ICONS.SERVER}  ${chalk.bold.hex(COLORS.PRIMARY)(
     server.name
   )}  ${statusBadge}`;
   const subtitle = chalk.dim(`${server.username}@${server.host}`);
-  const border = chalk.hex(COLORS.BRIGHT_BLUE)(BOX_CHARS.HORIZONTAL.repeat(50));
+  const border = chalk.hex(COLORS.SECONDARY)(BOX_CHARS.HORIZONTAL.repeat(50));
 
   console.log("\n" + border);
   console.log(title);
@@ -329,7 +336,7 @@ function displayServerDetails(
       const proc = processes.find((p) => p.tunnelId === t.id);
       const status = proc ? ICONS.TUNNEL_ACTIVE : ICONS.TUNNEL_INACTIVE;
       const portMap = `localhost:${t.localPort} ${ICONS.ARROW_RIGHT} ${t.remoteHost}:${t.remotePort}`;
-      return `${status}  ${chalk.hex(COLORS.BRIGHT_BLUE)(t.name)} ${chalk.dim(
+      return `${status}  ${chalk.hex(COLORS.SECONDARY)(t.name)} ${chalk.dim(
         `(${t.type})`
       )}\n    ${chalk.dim(portMap)}`;
     });
@@ -356,17 +363,17 @@ function displayTunnelHeader(
     ? chalk.bgGreen.black(" RUNNING ")
     : chalk.bgGray.white(" STOPPED ");
 
-  const title = `${ICONS.TUNNEL}  ${chalk.bold.hex(COLORS.BRIGHT_BLUE)(
+  const title = `${ICONS.TUNNEL}  ${chalk.bold.hex(COLORS.SECONDARY)(
     tunnel.name
   )}  ${statusBadge}`;
   const subtitle = chalk.dim(`${server.name} • ${tunnel.type}`);
   const portMap = `localhost:${tunnel.localPort} ${ICONS.ARROW_RIGHT} ${tunnel.remoteHost}:${tunnel.remotePort}`;
-  const border = chalk.hex(COLORS.BRIGHT_BLUE)(BOX_CHARS.HORIZONTAL.repeat(50));
+  const border = chalk.hex(COLORS.SECONDARY)(BOX_CHARS.HORIZONTAL.repeat(50));
 
   console.log("\n" + border);
   console.log(title);
   console.log(subtitle);
-  console.log(chalk.hex(COLORS.BOTTLE_GREEN)(portMap));
+  console.log(chalk.hex(COLORS.PRIMARY)(portMap));
   console.log(border + "\n");
 }
 
@@ -394,7 +401,7 @@ function buildMainMenuChoices(
       ).length;
 
       // Build server display line
-      let displayName = `${ICONS.SERVER}  ${chalk.bold.hex(COLORS.BOTTLE_GREEN)(
+      let displayName = `${ICONS.SERVER}  ${chalk.bold.hex(COLORS.PRIMARY)(
         server.name
       )}`;
 
@@ -434,7 +441,7 @@ function buildMainMenuChoices(
   choices.push(
     new inquirer.Separator(chalk.dim("─── Actions ───────────────────────")),
     {
-      name: `${ICONS.ADD}  ${chalk.hex(COLORS.BRIGHT_BLUE)("Add New Server")}`,
+      name: `${ICONS.ADD}  ${chalk.hex(COLORS.SECONDARY)("Add New Server")}`,
       value: "add_server",
     },
     new inquirer.Separator(chalk.dim("───────────────────────────────────")),
@@ -457,7 +464,7 @@ function buildServerActionsChoices(
 
   // Primary action
   choices.push({
-    name: `${ICONS.SSH}  ${chalk.bold.hex(COLORS.BOTTLE_GREEN)("SSH Connect")}`,
+    name: `${ICONS.SSH}  ${chalk.bold.hex(COLORS.PRIMARY)("SSH Connect")}`,
     value: "ssh",
   });
 
@@ -473,7 +480,7 @@ function buildServerActionsChoices(
       const statusText = proc ? chalk.green("running") : chalk.dim("stopped");
 
       choices.push({
-        name: `${status}  ${chalk.hex(COLORS.BRIGHT_BLUE)(
+        name: `${status}  ${chalk.hex(COLORS.SECONDARY)(
           tunnel.name
         )} ${chalk.dim(`(${tunnel.type})`)} ${statusText}`,
         value: `tunnel:${tunnel.id}`,
@@ -485,8 +492,12 @@ function buildServerActionsChoices(
   choices.push(
     new inquirer.Separator(chalk.dim("─── Actions ───────────────────────")),
     {
-      name: `${ICONS.ADD}  ${chalk.hex(COLORS.BRIGHT_BLUE)("Add Tunnel")}`,
+      name: `${ICONS.ADD}  ${chalk.hex(COLORS.SECONDARY)("Add Tunnel")}`,
       value: "add_tunnel",
+    },
+    {
+      name: `${ICONS.EDIT}  ${chalk.hex(COLORS.SECONDARY)("Edit Server")}`,
+      value: "edit_server",
     }
   );
 
@@ -508,14 +519,14 @@ function buildServerActionsChoices(
         : ICONS.FILE;
 
       choices.push({
-        name: `${icon}  ${chalk.hex(COLORS.BRIGHT_BLUE)(sf.name)} ${lastSync}`,
+        name: `${icon}  ${chalk.hex(COLORS.SECONDARY)(sf.name)} ${lastSync}`,
         value: `syncedfile:${sf.id}`,
       });
     });
   }
 
   choices.push({
-    name: `${ICONS.ADD}  ${chalk.hex(COLORS.BOTTLE_GREEN)("Add Synced File")}`,
+    name: `${ICONS.ADD}  ${chalk.hex(COLORS.PRIMARY)("Add Synced File")}`,
     value: "add_synced_file",
   });
 
@@ -560,10 +571,10 @@ function buildServerActionsChoices(
 async function addServerFlow(): Promise<void> {
   console.clear();
   console.log(
-    chalk.bold.hex(COLORS.BOTTLE_GREEN)("\n" + ICONS.ADD + "  Add New Server\n")
+    chalk.bold.hex(COLORS.PRIMARY)("\n" + ICONS.ADD + "  Add New Server\n")
   );
   console.log(
-    chalk.hex(COLORS.BRIGHT_BLUE)(BOX_CHARS.HORIZONTAL.repeat(50)) + "\n"
+    chalk.hex(COLORS.SECONDARY)(BOX_CHARS.HORIZONTAL.repeat(50)) + "\n"
   );
 
   const awsProfiles = storageService.getAllAWSProfiles();
@@ -804,7 +815,7 @@ async function fetchFromAWSFlow(): Promise<void> {
   console.log(
     boxen(
       [
-        chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.SERVER} ${instance.name}`),
+        chalk.hex(COLORS.PRIMARY).bold(`${ICONS.SERVER} ${instance.name}`),
         "",
         chalk.dim("Instance ID: ") + chalk.white(instance.instance_id),
         chalk.dim("Public IP: ") + chalk.white(instance.public_ip),
@@ -924,34 +935,13 @@ async function unlinkAWSProfileFlow(serverId: string): Promise<void> {
 async function addTunnelFlow(serverId: string): Promise<void> {
   console.clear();
   console.log(
-    chalk.bold.hex(COLORS.BRIGHT_BLUE)("\n" + ICONS.ADD + "  Add New Tunnel\n")
+    chalk.bold.hex(COLORS.SECONDARY)("\n" + ICONS.ADD + "  Add New Tunnel\n")
   );
   console.log(
-    chalk.hex(COLORS.BRIGHT_BLUE)(BOX_CHARS.HORIZONTAL.repeat(50)) + "\n"
+    chalk.hex(COLORS.SECONDARY)(BOX_CHARS.HORIZONTAL.repeat(50)) + "\n"
   );
 
-  const { type } = await inquirer.prompt([
-    {
-      type: "list",
-      name: "type",
-      message: "Tunnel Template:",
-      choices: [
-        { name: "🔧 Custom Tunnel", value: "custom" },
-        { name: "🐘 AWS RDS (PostgreSQL/MySQL)", value: "rds" },
-        { name: "🔴 Redis Cache", value: "redis" },
-      ],
-    },
-  ]);
-
-  let tunnelConfig: Partial<ITunnelConfig>;
-
-  if (type === "rds") {
-    tunnelConfig = await promptRDSTunnel();
-  } else if (type === "redis") {
-    tunnelConfig = await promptRedisTunnel();
-  } else {
-    tunnelConfig = await promptCustomTunnel();
-  }
+  const tunnelConfig = await promptCustomTunnel();
 
   await serverService.addTunnel(
     serverId,
@@ -963,96 +953,123 @@ async function addTunnelFlow(serverId: string): Promise<void> {
   await waitForEnter();
 }
 
-async function promptCustomTunnel(): Promise<Partial<ITunnelConfig>> {
+async function promptCustomTunnel(
+  defaults?: Partial<ITunnelConfig>
+): Promise<Partial<ITunnelConfig>> {
   const answers = await inquirer.prompt([
     {
       type: "input",
       name: "name",
       message: "Tunnel Name:",
+      default: defaults?.name,
       validate: (i: string) => i.length > 0 || "Required",
     },
     {
       type: "number",
       name: "localPort",
       message: "Local Port:",
+      default: defaults?.localPort,
       validate: (i: number) => (i > 0 && i < 65536) || "Invalid port",
     },
     {
       type: "input",
       name: "remoteHost",
       message: "Remote Host:",
-      default: "localhost",
+      default: defaults?.remoteHost || "localhost",
     },
     {
       type: "number",
       name: "remotePort",
       message: "Remote Port:",
+      default: defaults?.remotePort,
       validate: (i: number) => (i > 0 && i < 65536) || "Invalid port",
     },
   ]);
 
-  return { ...answers, type: "custom" };
+  return { ...answers, type: defaults?.type || "custom" };
 }
 
-async function promptRDSTunnel(): Promise<Partial<ITunnelConfig>> {
+async function editTunnelFlow(
+  serverId: string,
+  tunnelId: string
+): Promise<void> {
+  const server = serverService.getServer(serverId);
+  if (!server) return;
+
+  const tunnel = server.tunnels?.find((t) => t.id === tunnelId);
+  if (!tunnel) return;
+
+  console.clear();
+  console.log(
+    boxen(chalk.hex(COLORS.PRIMARY).bold(`${ICONS.EDIT} Edit Tunnel`), {
+      padding: { left: 2, right: 2, top: 0, bottom: 0 },
+      borderStyle: "round",
+      borderColor: "cyan",
+    })
+  );
+  console.log();
+
+  const updates = await promptCustomTunnel(tunnel);
+
+  await serverService.updateTunnel(serverId, tunnelId, updates);
+  console.log(
+    "\n" + chalk.green(UI.ICONS.SUCCESS + " Tunnel updated successfully!")
+  );
+  await waitForEnter();
+}
+
+async function editServerFlow(serverId: string): Promise<void> {
+  const server = serverService.getServer(serverId);
+  if (!server) return;
+
+  console.clear();
+  console.log(
+    boxen(chalk.hex(COLORS.PRIMARY).bold(`${ICONS.EDIT} Edit Server`), {
+      padding: { left: 2, right: 2, top: 0, bottom: 0 },
+      borderStyle: "round",
+      borderColor: "cyan",
+    })
+  );
+  console.log();
+
   const answers = await inquirer.prompt([
     {
       type: "input",
       name: "name",
-      message: "Tunnel Name:",
-      default: "RDS Database",
+      message: chalk.hex(COLORS.SECONDARY)("Server Name (alias):"),
+      default: server.name,
+      validate: (input: string) => input.length > 0 || "Name is required",
     },
     {
       type: "input",
-      name: "remoteHost",
-      message: "RDS Endpoint:",
-      validate: (i: string) => i.length > 0 || "Required",
+      name: "host",
+      message: chalk.hex(COLORS.SECONDARY)("IP Address / Hostname:"),
+      default: server.host,
+      validate: (input: string) => input.length > 0 || "Host is required",
     },
-    { type: "number", name: "remotePort", message: "RDS Port:", default: 5432 },
     {
-      type: "number",
-      name: "localPort",
-      message: "Local Port:",
-      default: 5432,
+      type: "input",
+      name: "username",
+      message: chalk.hex(COLORS.SECONDARY)("SSH Username:"),
+      default: server.username,
+      validate: (input: string) => input.length > 0 || "Username is required",
     },
   ]);
 
-  return { ...answers, type: "rds" };
-}
+  await serverService.updateServer(serverId, {
+    name: answers.name,
+    host: answers.host,
+    username: answers.username,
+  });
 
-async function promptRedisTunnel(): Promise<Partial<ITunnelConfig>> {
-  const answers = await inquirer.prompt([
-    {
-      type: "input",
-      name: "name",
-      message: "Tunnel Name:",
-      default: "Redis Cache",
-    },
-    {
-      type: "input",
-      name: "remoteHost",
-      message: "Redis Host:",
-      default: "localhost",
-    },
-    {
-      type: "number",
-      name: "remotePort",
-      message: "Redis Port:",
-      default: 6379,
-    },
-    {
-      type: "number",
-      name: "localPort",
-      message: "Local Port:",
-      default: 6379,
-    },
-  ]);
-
-  return { ...answers, type: "redis" };
+  console.log(
+    "\n" + chalk.green(UI.ICONS.SUCCESS + " Server updated successfully!")
+  );
+  await waitForEnter();
 }
 
 async function startTunnel(serverId: string, tunnelId: string): Promise<void> {
-  console.log(chalk.hex(COLORS.BRIGHT_BLUE)("\nStarting tunnel..."));
+  console.log(chalk.hex(COLORS.SECONDARY)("\nStarting tunnel..."));
   console.log(
     boxen(chalk.yellow("Press Ctrl+C to stop the tunnel"), {
       padding: 1,
@@ -1188,7 +1205,7 @@ async function syncedFileActionsMenu(
     {
       type: "list",
       name: "action",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)("Action:"),
+      message: chalk.hex(COLORS.SECONDARY)("Action:"),
       choices,
       pageSize: 10,
     },
@@ -1219,7 +1236,7 @@ function displaySyncedFileHeader(
     : ICONS.FILE;
 
   const header = boxen(
-    chalk.hex(COLORS.BOTTLE_GREEN).bold(`${icon} ${syncedFile.name}`) +
+    chalk.hex(COLORS.PRIMARY).bold(`${icon} ${syncedFile.name}`) +
       "\n" +
       chalk.dim(`on ${server.name}`),
     {
@@ -1259,7 +1276,7 @@ async function addSyncedFileFlow(serverId: string): Promise<void> {
   console.clear();
   console.log(
     boxen(
-      chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.ADD} Add Synced File`) +
+      chalk.hex(COLORS.PRIMARY).bold(`${ICONS.ADD} Add Synced File`) +
         "\n" +
         chalk.dim(`to ${server.name}`),
       {
@@ -1276,7 +1293,7 @@ async function addSyncedFileFlow(serverId: string): Promise<void> {
     {
       type: "input",
       name: "name",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)("Name (e.g., 'Dev ENV File'):"),
+      message: chalk.hex(COLORS.SECONDARY)("Name (e.g., 'Dev ENV File'):"),
       validate: (input: string) =>
         input.trim().length > 0 || "Name is required",
     },
@@ -1287,7 +1304,7 @@ async function addSyncedFileFlow(serverId: string): Promise<void> {
     {
       type: "input",
       name: "localPath",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)("Local file path (absolute):"),
+      message: chalk.hex(COLORS.SECONDARY)("Local file path (absolute):"),
       validate: (input: string) =>
         input.trim().length > 0 || "Path is required",
     },
@@ -1363,7 +1380,7 @@ async function getRemotePathWithOptions(
     {
       type: "list",
       name: "method",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)(
+      message: chalk.hex(COLORS.SECONDARY)(
         "How would you like to specify the remote path?"
       ),
       choices,
@@ -1378,7 +1395,7 @@ async function getRemotePathWithOptions(
       {
         type: "input",
         name: "remotePath",
-        message: chalk.hex(COLORS.BRIGHT_BLUE)(
+        message: chalk.hex(COLORS.SECONDARY)(
           "Remote path (absolute on server):"
         ),
         validate: (input: string) =>
@@ -1401,7 +1418,7 @@ async function getRemotePathWithOptions(
         {
           type: "input",
           name: "remotePath",
-          message: chalk.hex(COLORS.BRIGHT_BLUE)(
+          message: chalk.hex(COLORS.SECONDARY)(
             "Remote path (edit as needed):"
           ),
           default: sf.remote_path,
@@ -1430,7 +1447,7 @@ async function browseRemoteFileSystem(
 
   console.log();
   console.log(
-    chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.BROWSE} Remote File Browser`)
+    chalk.hex(COLORS.PRIMARY).bold(`${ICONS.BROWSE} Remote File Browser`)
   );
   console.log(chalk.dim("Navigate and select a file, or create a new one."));
   if (localFileName) {
@@ -1537,7 +1554,7 @@ async function browseRemoteFileSystem(
       {
         type: "list",
         name: "selection",
-        message: chalk.hex(COLORS.BRIGHT_BLUE)("Select file or navigate:"),
+        message: chalk.hex(COLORS.SECONDARY)("Select file or navigate:"),
         choices,
         pageSize: 20,
       },
@@ -1600,7 +1617,7 @@ async function createNewFilePrompt(
     {
       type: "list",
       name: "method",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)(
+      message: chalk.hex(COLORS.SECONDARY)(
         "How would you like to name the remote file?"
       ),
       choices,
@@ -1616,7 +1633,7 @@ async function createNewFilePrompt(
       {
         type: "input",
         name: "customName",
-        message: chalk.hex(COLORS.BRIGHT_BLUE)("Enter filename:"),
+        message: chalk.hex(COLORS.SECONDARY)("Enter filename:"),
         default: localFileName || "",
         validate: (input: string) => {
           if (!input.trim()) return "Filename is required";
@@ -1699,7 +1716,7 @@ async function viewRemoteFile(
     console.log(
       boxen(
         chalk
-          .hex(COLORS.BOTTLE_GREEN)
+          .hex(COLORS.PRIMARY)
           .bold(`${ICONS.VIEW} Remote File Contents`) +
           "\n" +
           chalk.dim(remotePath),
@@ -1742,7 +1759,7 @@ async function editSyncedFileFlow(
   console.clear();
   console.log(
     boxen(
-      chalk.hex(COLORS.BOTTLE_GREEN).bold(`${ICONS.EDIT} Edit Synced File`),
+      chalk.hex(COLORS.PRIMARY).bold(`${ICONS.EDIT} Edit Synced File`),
       {
         padding: { left: 2, right: 2, top: 0, bottom: 0 },
         borderStyle: "round",
@@ -1756,7 +1773,7 @@ async function editSyncedFileFlow(
     {
       type: "input",
       name: "name",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)("Name:"),
+      message: chalk.hex(COLORS.SECONDARY)("Name:"),
       default: syncedFile.name,
     },
   ]);
@@ -1765,7 +1782,7 @@ async function editSyncedFileFlow(
     {
       type: "input",
       name: "localPath",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)("Local path:"),
+      message: chalk.hex(COLORS.SECONDARY)("Local path:"),
       default: syncedFile.local_path,
     },
   ]);
@@ -1808,7 +1825,7 @@ async function editSyncedFileFlow(
     {
       type: "list",
       name: "remoteMethod",
-      message: chalk.hex(COLORS.BRIGHT_BLUE)("Remote path:"),
+      message: chalk.hex(COLORS.SECONDARY)("Remote path:"),
       choices: remoteChoices,
       pageSize: 10,
     },

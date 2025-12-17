@@ -35,7 +35,7 @@ export async function loginCommand(): Promise<void> {
             padding: 1,
             margin: 1,
             borderStyle: "round",
-            borderColor: COLORS.BRIGHT_BLUE,
+            borderColor: COLORS.SECONDARY,
           }
         )
       );
@@ -80,7 +80,7 @@ export async function loginCommand(): Promise<void> {
           padding: 1,
           margin: 1,
           borderStyle: "round",
-          borderColor: COLORS.BRIGHT_BLUE,
+          borderColor: COLORS.SECONDARY,
         }
       )
     );
@@ -273,7 +273,7 @@ async function createNewProfile(): Promise<void> {
 }
 
 function displayBanner(): void {
-  const gradientLogo = gradient([COLORS.BOTTLE_GREEN, COLORS.BRIGHT_BLUE])(
+  const gradientLogo = gradient([COLORS.PRIMARY, COLORS.SECONDARY])(
     ASCII_LOGO
   );
 

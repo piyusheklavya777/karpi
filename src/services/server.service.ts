@@ -257,6 +257,53 @@ export class ServerService {
     return false;
   }
 
+  async updateServer(
+    serverId: string,
+    updates: Partial<Pick<IServerConfig, "name" | "host" | "username">>
+  ): Promise<IServerConfig | null> {
+    const server = this.getServer(serverId);
+    if (!server) {
+      logger.error("Server not found");
+      return null;
+    }
+
+    const updatedServer: IServerConfig = {
+      ...server,
+      ...updates,
+    };
+
+    storageService.saveServer(updatedServer);
+    logger.success(`Server "${updatedServer.name}" updated`);
+    return updatedServer;
+  }
+
+  async updateTunnel(
+    serverId: string,
+    tunnelId: string,
+    updates: Partial<Omit<ITunnelConfig, "id">>
+  ): Promise<ITunnelConfig | null> {
+    const server = this.getServer(serverId);
+    if (!server || !server.tunnels) {
+      logger.error("Server or tunnels not found");
+      return null;
+    }
+
+    const tunnelIndex = server.tunnels.findIndex((t) => t.id === tunnelId);
+    if (tunnelIndex === -1) {
+      logger.error("Tunnel not found");
+      return null;
+    }
+
+    server.tunnels[tunnelIndex] = {
+      ...server.tunnels[tunnelIndex],
+      ...updates,
+    };
+
+    storageService.saveServer(server);
+    logger.success(`Tunnel "${server.tunnels[tunnelIndex].name}" updated`);
+    return server.tunnels[tunnelIndex];
+  }
+
   getTunnelCommand(serverId: string, tunnelId: string): string | null {
     const server = this.getServer(serverId);
     if (!server || !server.tunnels) return null;

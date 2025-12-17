@@ -2,59 +2,59 @@
 
 import chalk from "chalk";
 
-// Color Palette - Bottle Green, Bright Blue, and Black
+// Color Palette - Pink theme (white to pink gradient, no dark shades)
 export const COLORS = {
-  // Primary colors
-  BOTTLE_GREEN: "#2d5016",
-  BRIGHT_BLUE: "#00bfff",
-  BLACK: "#000000",
+  // Primary pink colors (bright, no dark shades)
+  PRIMARY: "#FF69B4", // Hot pink - main accent
+  SECONDARY: "#FF85C1", // Lighter hot pink
+  ACCENT: "#FF1493", // Deep pink for emphasis
 
-  // Shades for variety
-  DARK_GREEN: "#1a3009",
-  LIGHT_GREEN: "#4a7c2c",
-  SKY_BLUE: "#87ceeb",
-  DARK_BLUE: "#0080bf",
+  // Lighter variations
+  LIGHT: "#FFB6C1", // Light pink
+  SOFT: "#FFC0CB", // Soft pink
+  PALE: "#FFD9E8", // Very pale pink
+  BLUSH: "#FFF0F5", // Lavender blush (almost white)
 
   // Utility colors
   WHITE: "#ffffff",
-  GRAY: "#808080",
-  LIGHT_GRAY: "#d3d3d3",
-  SUCCESS: "#4a7c2c",
-  ERROR: "#ff0000",
-  WARNING: "#ffa500",
+  GRAY: "#B0B0B0", // Light gray (not dark)
+  LIGHT_GRAY: "#E0E0E0",
+  SUCCESS: "#4CAF50", // Green for success
+  ERROR: "#FF6B6B", // Soft red
+  WARNING: "#FFB347", // Soft orange
 } as const;
 
 // Chalk styled functions with our color scheme
 export const styled = {
   // Primary branding
-  brand: chalk.hex(COLORS.BOTTLE_GREEN).bold,
-  accent: chalk.hex(COLORS.BRIGHT_BLUE).bold,
+  brand: chalk.hex(COLORS.PRIMARY).bold,
+  accent: chalk.hex(COLORS.ACCENT).bold,
 
   // Text styles
-  primary: chalk.hex(COLORS.BOTTLE_GREEN),
-  secondary: chalk.hex(COLORS.BRIGHT_BLUE),
+  primary: chalk.hex(COLORS.PRIMARY),
+  secondary: chalk.hex(COLORS.SECONDARY),
   text: chalk.white,
   dimmed: chalk.hex(COLORS.GRAY),
 
   // Status colors
   success: chalk.hex(COLORS.SUCCESS),
-  error: chalk.red,
+  error: chalk.hex(COLORS.ERROR),
   warning: chalk.hex(COLORS.WARNING),
-  info: chalk.hex(COLORS.BRIGHT_BLUE),
+  info: chalk.hex(COLORS.LIGHT),
 
   // Special effects
-  highlight: chalk.bgHex(COLORS.BOTTLE_GREEN).hex(COLORS.WHITE),
-  highlightBlue: chalk.bgHex(COLORS.BRIGHT_BLUE).hex(COLORS.BLACK),
+  highlight: chalk.bgHex(COLORS.PRIMARY).hex(COLORS.WHITE),
+  highlightAlt: chalk.bgHex(COLORS.SECONDARY).hex(COLORS.WHITE),
   bold: chalk.bold,
   italic: chalk.italic,
   underline: chalk.underline,
 
   // UI elements
-  box: chalk.hex(COLORS.BRIGHT_BLUE),
-  title: chalk.hex(COLORS.BOTTLE_GREEN).bold.underline,
-  subtitle: chalk.hex(COLORS.BRIGHT_BLUE).italic,
-  label: chalk.hex(COLORS.LIGHT_GREEN),
-  value: chalk.hex(COLORS.SKY_BLUE),
+  box: chalk.hex(COLORS.PRIMARY),
+  title: chalk.hex(COLORS.PRIMARY).bold.underline,
+  subtitle: chalk.hex(COLORS.SECONDARY).italic,
+  label: chalk.hex(COLORS.LIGHT),
+  value: chalk.hex(COLORS.SOFT),
 } as const;
 
 // Application constants
@@ -95,7 +95,7 @@ export const UI = {
     padding: 1,
     margin: 1,
     borderStyle: "round" as const,
-    borderColor: COLORS.BRIGHT_BLUE,
+    borderColor: COLORS.PRIMARY,
   },
   ICONS: {
     SUCCESS: "✓",
@@ -118,7 +118,7 @@ export const UI = {
 export const DEFAULT_PREFERENCES = {
   theme: "dark" as const,
   editor: "code",
-  terminal_colors: [COLORS.BOTTLE_GREEN, COLORS.BRIGHT_BLUE, COLORS.BLACK],
+  terminal_colors: [COLORS.PRIMARY, COLORS.SECONDARY, COLORS.ACCENT],
   auto_logout_minutes: AUTO_LOGOUT_MINUTES,
   startup_command: "dashboard",
 };
