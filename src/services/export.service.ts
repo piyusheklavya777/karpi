@@ -160,12 +160,17 @@ export interface IImportDiff {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export class ExportService {
-    private keysDir: string;
     private logPath: string;
 
     constructor() {
-        this.keysDir = join(homedir(), CONFIG_DIR, "keys");
         this.logPath = join(homedir(), CONFIG_DIR, "export-log.json");
+    }
+
+    /**
+     * Get profile-specific keys directory
+     */
+    private getKeysDir(): string {
+        return storageService.getProfileKeysDir();
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -576,7 +581,8 @@ export class ExportService {
         serverName: string
     ): Promise<string> {
         // Ensure keys directory exists
-        await mkdir(this.keysDir, { recursive: true });
+        const keysDir = this.getKeysDir();
+        await mkdir(keysDir, { recursive: true });
 
         if (typeof pemFile === "string") {
             // Direct path string (legacy format)
@@ -592,7 +598,7 @@ export class ExportService {
         if ("$content" in pemFile) {
             // Embedded content - write to keys directory
             const filename = `${serverName.replace(/[^a-zA-Z0-9-_]/g, "_")}.pem`;
-            const destPath = join(this.keysDir, filename);
+            const destPath = join(keysDir, filename);
             await writeFile(destPath, pemFile.$content, { mode: 0o600 });
             return destPath;
         }
@@ -609,7 +615,7 @@ export class ExportService {
 
             // Copy to keys directory
             const filename = basename(sourcePath);
-            const destPath = join(this.keysDir, filename);
+            const destPath = join(keysDir, filename);
             await copyFile(sourcePath, destPath);
 
             // Set proper permissions

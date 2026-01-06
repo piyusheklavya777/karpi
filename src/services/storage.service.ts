@@ -118,6 +118,22 @@ export class StorageService {
     return this.getProfileById(activeId);
   }
 
+  /**
+   * Get the profile-specific keys directory
+   * Structure: ~/.karpi/profiles/{username}/keys/
+   */
+  getProfileKeysDir(username?: string): string {
+    const profileName = username || this.getActiveProfile()?.username || "default";
+    return join(this.configPath, "profiles", profileName, "keys");
+  }
+
+  /**
+   * Get the config path
+   */
+  getConfigPath(): string {
+    return this.configPath;
+  }
+
   // Session management
   getAllSessions(): ISession[] {
     return this.config.get("sessions", []);
@@ -398,10 +414,6 @@ export class StorageService {
   clear(): void {
     this.config.clear();
     logger.debug("Storage cleared");
-  }
-
-  getConfigPath(): string {
-    return this.configPath;
   }
 }
 

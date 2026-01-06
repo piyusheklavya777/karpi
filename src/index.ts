@@ -134,6 +134,97 @@ program
     }
   });
 
+// Update command
+program
+  .command('update')
+  .description('Check for and install Karpi updates via Homebrew')
+  .action(async () => {
+    const chalk = (await import('chalk')).default;
+    const ora = (await import('ora')).default;
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    console.log();
+    const spinner = ora('Checking for updates...').start();
+
+    try {
+      // Get latest version from Homebrew
+      let latestVersion = 'unknown';
+      try {
+        const { stdout } = await execAsync('brew info karpi --json=v2');
+        const info = JSON.parse(stdout);
+        latestVersion = info.formulae?.[0]?.versions?.stable || info.casks?.[0]?.version || 'unknown';
+      } catch {
+        // Fallback: try brew list
+        try {
+          await execAsync('brew list karpi');
+        } catch {
+          spinner.fail(chalk.red('Karpi is not installed via Homebrew'));
+          console.log(chalk.dim('\nInstall with: brew install karpi'));
+          return;
+        }
+      }
+
+      const currentVersion = APP_VERSION;
+      spinner.stop();
+
+      if (latestVersion === 'unknown') {
+        console.log(chalk.yellow('⚠️  Could not determine latest version'));
+        console.log(chalk.dim('Run manually: brew update && brew upgrade karpi'));
+        return;
+      }
+
+      if (currentVersion === latestVersion) {
+        console.log(chalk.green(`✓ Karpi is up to date (v${currentVersion})`));
+        return;
+      }
+
+      // Check if update available (compare versions)
+      const current = currentVersion.split('.').map(Number);
+      const latest = latestVersion.split('.').map(Number);
+      const needsUpdate = latest[0] > current[0] ||
+        (latest[0] === current[0] && latest[1] > current[1]) ||
+        (latest[0] === current[0] && latest[1] === current[1] && latest[2] > current[2]);
+
+      if (!needsUpdate) {
+        console.log(chalk.green(`✓ Karpi is up to date (v${currentVersion})`));
+        return;
+      }
+
+      console.log(chalk.cyan(`📦 Update available: ${chalk.dim(currentVersion)} → ${chalk.bold(latestVersion)}`));
+
+      const inquirer = (await import('inquirer')).default;
+      const { confirmUpdate } = await inquirer.prompt({
+        type: 'confirm',
+        name: 'confirmUpdate',
+        message: 'Install update?',
+        default: true,
+      });
+
+      if (!confirmUpdate) {
+        console.log(chalk.dim('\nUpdate cancelled.'));
+        return;
+      }
+
+      console.log();
+      const updateSpinner = ora('Updating Karpi...').start();
+
+      try {
+        await execAsync('brew update');
+        await execAsync('brew upgrade karpi');
+        updateSpinner.succeed(chalk.green(`✓ Updated to v${latestVersion}`));
+        console.log(chalk.dim('\nRestart your terminal to use the new version.'));
+      } catch (updateError) {
+        updateSpinner.fail(chalk.red('Update failed'));
+        console.log(chalk.dim('\nTry manually: brew update && brew upgrade karpi'));
+      }
+    } catch (error) {
+      spinner.fail(chalk.red('Failed to check for updates'));
+      console.log(chalk.dim('\nTry manually: brew update && brew upgrade karpi'));
+    }
+  });
+
 // Default action (no command specified)
 program.action(async () => {
   // Check if user is logged in
