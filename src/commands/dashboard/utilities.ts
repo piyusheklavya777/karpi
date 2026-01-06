@@ -21,6 +21,8 @@ const ICONS = {
   BACK: "←",
   SUCCESS: "✓",
   ERROR: "✗",
+  EXPORT: "📦",
+  IMPORT: "📥",
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -52,13 +54,26 @@ export async function utilitiesMenu(): Promise<void> {
             )}         ${chalk.dim("Stop process on a port")}`,
             value: "kill_port",
           },
+          new inquirer.Separator(chalk.dim("─── Configuration ────────────")),
+          {
+            name: `${ICONS.EXPORT}  ${chalk.bold(
+              "Export Config"
+            )}      ${chalk.dim("Save config to YAML file")}`,
+            value: "export_config",
+          },
+          {
+            name: `${ICONS.IMPORT}  ${chalk.bold(
+              "Import Config"
+            )}      ${chalk.dim("Load config from file")}`,
+            value: "import_config",
+          },
           new inquirer.Separator(chalk.dim("─────────────────────────────")),
           {
             name: `${ICONS.BACK}  ${chalk.dim("Back to Dashboard")}`,
             value: "back",
           },
         ],
-        pageSize: 10,
+        pageSize: 12,
       },
     ]);
 
@@ -68,6 +83,12 @@ export async function utilitiesMenu(): Promise<void> {
         break;
       case "kill_port":
         await killPortFlow();
+        break;
+      case "export_config":
+        await exportConfigFlow();
+        break;
+      case "import_config":
+        await importConfigFlow();
         break;
       case "back":
         running = false;
@@ -123,9 +144,9 @@ async function checkPortFlow(): Promise<void> {
           chalk
             .hex(COLORS.PRIMARY)
             .bold(`${ICONS.PORT} Port ${port} is in use\n\n`) +
-            chalk.dim(header) +
-            "\n" +
-            processes.map((p) => chalk.white(p)).join("\n"),
+          chalk.dim(header) +
+          "\n" +
+          processes.map((p) => chalk.white(p)).join("\n"),
           {
             padding: 1,
             borderStyle: "round",
@@ -149,8 +170,7 @@ async function checkPortFlow(): Promise<void> {
     } else {
       console.log(
         chalk.hex(COLORS.ERROR)(
-          `\n${ICONS.ERROR} Error checking port: ${
-            err.stderr || "Unknown error"
+          `\n${ICONS.ERROR} Error checking port: ${err.stderr || "Unknown error"
           }`
         )
       );
@@ -199,7 +219,7 @@ async function killPortFlow(): Promise<void> {
     console.log(
       boxen(
         chalk.hex(COLORS.PRIMARY).bold(`Processes on port ${port}:\n\n`) +
-          chalk.white(processInfo.trim()),
+        chalk.white(processInfo.trim()),
         {
           padding: 1,
           borderStyle: "round",
@@ -272,4 +292,193 @@ async function pressEnterToContinue(): Promise<void> {
     name: "continue",
     message: chalk.dim("Press Enter to continue..."),
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Export Config
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function exportConfigFlow(): Promise<void> {
+  const ora = (await import("ora")).default;
+  const { exportService } = await import("../../services/export.service");
+  const { homedir } = await import("os");
+  const { join } = await import("path");
+
+  const defaultPath = join(
+    homedir(),
+    "Desktop",
+    `karpi-config-${new Date().toISOString().split("T")[0]}.yaml`
+  );
+
+  const answers = await inquirer.prompt([
+    {
+      type: "input",
+      name: "outputPath",
+      message: chalk.hex(COLORS.SECONDARY)("Output file path:"),
+      default: defaultPath,
+    },
+    {
+      type: "confirm",
+      name: "embedKeys",
+      message: chalk.hex(COLORS.SECONDARY)(
+        "Embed PEM file contents inline? (No = copy files to keys/ folder)"
+      ),
+      default: false,
+    },
+  ]);
+
+  console.log();
+  const spinner = ora("Exporting configuration...").start();
+
+  const result = await exportService.exportConfig(answers.outputPath, {
+    includePemContent: answers.embedKeys,
+  });
+
+  if (result.success) {
+    spinner.succeed(
+      chalk.hex(COLORS.SUCCESS)(`${ICONS.SUCCESS} Configuration exported!`)
+    );
+    console.log(chalk.dim(`\nSaved to: ${result.path}`));
+    if (!answers.embedKeys) {
+      console.log(
+        chalk.dim(
+          "Note: PEM files copied to keys/ folder next to the YAML file"
+        )
+      );
+    }
+  } else {
+    spinner.fail(chalk.hex(COLORS.ERROR)(`${ICONS.ERROR} Export failed`));
+    console.log(chalk.hex(COLORS.ERROR)(result.error));
+  }
+
+  await pressEnterToContinue();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Import Config
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function importConfigFlow(): Promise<void> {
+  const ora = (await import("ora")).default;
+  const { exportService } = await import("../../services/export.service");
+
+  const { inputPath } = await inquirer.prompt({
+    type: "input",
+    name: "inputPath",
+    message: chalk.hex(COLORS.SECONDARY)("Path to config file:"),
+    validate: (input: string) =>
+      input.length > 0 ? true : "Please enter a file path",
+  });
+
+  // Preview first
+  console.log(chalk.hex(COLORS.SECONDARY)("\nPreviewing config file...\n"));
+  const preview = await exportService.previewImport(inputPath);
+
+  if (preview.errors.length > 0) {
+    console.log(chalk.hex(COLORS.ERROR)("Errors reading file:"));
+    preview.errors.forEach((e) =>
+      console.log(chalk.hex(COLORS.ERROR)(`  • ${e}`))
+    );
+    await pressEnterToContinue();
+    return;
+  }
+
+  console.log(chalk.white("This file contains:"));
+  console.log(
+    chalk.hex(COLORS.PRIMARY)(
+      `  • ${preview.servers.length} servers: ${preview.servers.join(", ") || "none"}`
+    )
+  );
+  console.log(
+    chalk.hex(COLORS.PRIMARY)(
+      `  • ${preview.aws_profiles.length} AWS profiles: ${preview.aws_profiles.join(", ") || "none"}`
+    )
+  );
+  console.log(
+    chalk.hex(COLORS.PRIMARY)(
+      `  • ${preview.rds_instances.length} RDS instances: ${preview.rds_instances.join(", ") || "none"}`
+    )
+  );
+  console.log();
+
+  const { confirmImport, overwrite } = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "confirmImport",
+      message: chalk.hex(COLORS.SECONDARY)("Proceed with import?"),
+      default: true,
+    },
+    {
+      type: "confirm",
+      name: "overwrite",
+      message: chalk.hex(COLORS.WARNING)(
+        "Overwrite existing configs with same name?"
+      ),
+      default: false,
+      when: (answers) => answers.confirmImport,
+    },
+  ]);
+
+  if (!confirmImport) {
+    console.log(chalk.dim("\nCancelled."));
+    await pressEnterToContinue();
+    return;
+  }
+
+  console.log();
+  const spinner = ora("Importing configuration...").start();
+
+  const result = await exportService.importConfig(inputPath, {
+    overwrite: overwrite,
+  });
+
+  if (result.success) {
+    spinner.succeed(
+      chalk.hex(COLORS.SUCCESS)(`${ICONS.SUCCESS} Configuration imported!`)
+    );
+    console.log(chalk.white("\nImported:"));
+    console.log(
+      chalk.hex(COLORS.SUCCESS)(`  ✓ ${result.imported.servers} servers`)
+    );
+    console.log(
+      chalk.hex(COLORS.SUCCESS)(
+        `  ✓ ${result.imported.aws_profiles} AWS profiles`
+      )
+    );
+    console.log(
+      chalk.hex(COLORS.SUCCESS)(
+        `  ✓ ${result.imported.rds_instances} RDS instances`
+      )
+    );
+
+    if (
+      result.skipped.servers.length > 0 ||
+      result.skipped.aws_profiles.length > 0
+    ) {
+      console.log(chalk.hex(COLORS.WARNING)("\nSkipped (already exist):"));
+      if (result.skipped.servers.length) {
+        console.log(
+          chalk.hex(COLORS.WARNING)(
+            `  • Servers: ${result.skipped.servers.join(", ")}`
+          )
+        );
+      }
+      if (result.skipped.aws_profiles.length) {
+        console.log(
+          chalk.hex(COLORS.WARNING)(
+            `  • AWS Profiles: ${result.skipped.aws_profiles.join(", ")}`
+          )
+        );
+      }
+    }
+  } else {
+    spinner.fail(
+      chalk.hex(COLORS.ERROR)(`${ICONS.ERROR} Import completed with errors`)
+    );
+    result.errors.forEach((e) =>
+      console.log(chalk.hex(COLORS.ERROR)(`  • ${e}`))
+    );
+  }
+
+  await pressEnterToContinue();
 }

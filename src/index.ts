@@ -42,11 +42,103 @@ program
     await dashboardCommand();
   });
 
+// Export command
+program
+  .command('export [output-file]')
+  .description('Export configuration to a YAML file')
+  .option('--embed-keys', 'Embed PEM file contents inline instead of copying')
+  .action(async (outputFile: string | undefined, options: { embedKeys?: boolean }) => {
+    const chalk = (await import('chalk')).default;
+    const ora = (await import('ora')).default;
+    const { exportService } = await import('./services/export.service');
+    const { authService } = await import('./services/auth.service');
+
+    if (!authService.isAuthenticated()) {
+      console.log(chalk.red('❌ Please login first: karpi login'));
+      process.exit(1);
+    }
+
+    const defaultPath = `./karpi-config-${new Date().toISOString().split('T')[0]}.yaml`;
+    const targetPath = outputFile || defaultPath;
+
+    const spinner = ora('Exporting configuration...').start();
+    const result = await exportService.exportConfig(targetPath, {
+      includePemContent: options.embedKeys,
+    });
+
+    if (result.success) {
+      spinner.succeed(chalk.green(`Configuration exported to: ${result.path}`));
+    } else {
+      spinner.fail(chalk.red(`Export failed: ${result.error}`));
+      process.exit(1);
+    }
+  });
+
+// Import command
+program
+  .command('import <input-file>')
+  .description('Import configuration from a YAML file')
+  .option('--overwrite', 'Overwrite existing configurations with same name')
+  .option('--dry-run', 'Preview what would be imported without making changes')
+  .action(async (inputFile: string, options: { overwrite?: boolean; dryRun?: boolean }) => {
+    const chalk = (await import('chalk')).default;
+    const ora = (await import('ora')).default;
+    const { exportService } = await import('./services/export.service');
+    const { authService } = await import('./services/auth.service');
+
+    if (!authService.isAuthenticated()) {
+      console.log(chalk.red('❌ Please login first: karpi login'));
+      process.exit(1);
+    }
+
+    if (options.dryRun) {
+      console.log(chalk.cyan('\n📋 Dry run - previewing import...\n'));
+      const preview = await exportService.previewImport(inputFile);
+
+      if (preview.errors.length > 0) {
+        console.log(chalk.red('Errors:'));
+        preview.errors.forEach(e => console.log(chalk.red(`  • ${e}`)));
+        process.exit(1);
+      }
+
+      console.log(chalk.white('Would import:'));
+      console.log(chalk.cyan(`  • ${preview.servers.length} servers: ${preview.servers.join(', ') || 'none'}`));
+      console.log(chalk.cyan(`  • ${preview.aws_profiles.length} AWS profiles: ${preview.aws_profiles.join(', ') || 'none'}`));
+      console.log(chalk.cyan(`  • ${preview.rds_instances.length} RDS instances: ${preview.rds_instances.join(', ') || 'none'}`));
+      return;
+    }
+
+    const spinner = ora('Importing configuration...').start();
+    const result = await exportService.importConfig(inputFile, {
+      overwrite: options.overwrite,
+      dryRun: false,
+    });
+
+    if (result.success) {
+      spinner.succeed(chalk.green('Configuration imported successfully!'));
+      console.log(chalk.white('\nImported:'));
+      console.log(chalk.green(`  ✓ ${result.imported.servers} servers`));
+      console.log(chalk.green(`  ✓ ${result.imported.aws_profiles} AWS profiles`));
+      console.log(chalk.green(`  ✓ ${result.imported.rds_instances} RDS instances`));
+
+      if (result.skipped.servers.length > 0 || result.skipped.aws_profiles.length > 0) {
+        console.log(chalk.yellow('\nSkipped (already exist):'));
+        if (result.skipped.servers.length) console.log(chalk.yellow(`  • Servers: ${result.skipped.servers.join(', ')}`));
+        if (result.skipped.aws_profiles.length) console.log(chalk.yellow(`  • AWS Profiles: ${result.skipped.aws_profiles.join(', ')}`));
+        if (result.skipped.rds_instances.length) console.log(chalk.yellow(`  • RDS: ${result.skipped.rds_instances.join(', ')}`));
+      }
+    } else {
+      spinner.fail(chalk.red('Import completed with errors'));
+      result.errors.forEach(e => console.log(chalk.red(`  • ${e}`)));
+      process.exit(1);
+    }
+  });
+
 // Default action (no command specified)
 program.action(async () => {
   // Check if user is logged in
   const { authService } = await import('./services/auth.service');
-  
+
   if (authService.isAuthenticated()) {
     await dashboardCommand();
   } else {

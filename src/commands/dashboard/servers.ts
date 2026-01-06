@@ -265,11 +265,11 @@ function displayEmptyState(): void {
   console.log(
     boxen(
       chalk.hex(COLORS.SECONDARY)("No servers configured yet.\n\n") +
-        chalk.dim("Press ") +
-        chalk.white("↓") +
-        chalk.dim(" to select ") +
-        chalk.hex(COLORS.PRIMARY)('"Add New Server"') +
-        chalk.dim(" to get started."),
+      chalk.dim("Press ") +
+      chalk.white("↓") +
+      chalk.dim(" to select ") +
+      chalk.hex(COLORS.PRIMARY)('"Add New Server"') +
+      chalk.dim(" to get started."),
       {
         padding: 1,
         margin: { top: 0, bottom: 1, left: 2, right: 2 },
@@ -400,7 +400,7 @@ function buildMainMenuChoices(
         (p) => p.serverId === server.id
       ).length;
 
-      // Build server display line
+      // Build server display line with better spacing
       let displayName = `${ICONS.SERVER}  ${chalk.bold.hex(COLORS.PRIMARY)(
         server.name
       )}`;
@@ -409,20 +409,20 @@ function buildMainMenuChoices(
       if (server.aws_profile_id) {
         const awsProfile = storageService.getAWSProfile(server.aws_profile_id);
         if (awsProfile) {
-          displayName += chalk.cyan(` [${ICONS.AWS} ${awsProfile.name}]`);
+          displayName += chalk.cyan(` [${ICONS.AWS}${awsProfile.name}]`);
         }
       }
 
       displayName += chalk.dim(` (${server.username}@${server.host})`);
 
-      // Show tunnel status indicators
+      // Show tunnel status indicators with spacing
       if (tunnels.length > 0) {
         const activeIndicators = tunnels
           .map((t) => {
             const isActive = processes.some((p) => p.tunnelId === t.id);
             return isActive ? ICONS.TUNNEL_ACTIVE : ICONS.TUNNEL_INACTIVE;
           })
-          .join("");
+          .join(" ");
         displayName += `  ${activeIndicators}`;
       }
 
@@ -511,8 +511,8 @@ function buildServerActionsChoices(
     syncedFiles.forEach((sf) => {
       const lastSync = sf.last_synced
         ? chalk.dim(
-            `synced ${format(new Date(sf.last_synced), "MMM d, HH:mm")}`
-          )
+          `synced ${format(new Date(sf.last_synced), "MMM d, HH:mm")}`
+        )
         : chalk.dim("never synced");
       const icon = sf.name.toLowerCase().includes("env")
         ? ICONS.ENV
@@ -589,14 +589,14 @@ async function addServerFlow(): Promise<void> {
       ...(awsProfiles.length > 0
         ? [{ name: `${ICONS.AWS}  Fetch from AWS`, value: "aws" }]
         : [
-            {
-              name: chalk.dim(
-                `${ICONS.AWS}  Fetch from AWS (no AWS profiles configured)`
-              ),
-              value: "aws_disabled",
-              disabled: true,
-            },
-          ]),
+          {
+            name: chalk.dim(
+              `${ICONS.AWS}  Fetch from AWS (no AWS profiles configured)`
+            ),
+            value: "aws_disabled",
+            disabled: true,
+          },
+        ]),
       new inquirer.Separator(),
       { name: `${ICONS.BACK}  Cancel`, value: "cancel" },
     ],
@@ -914,9 +914,8 @@ async function unlinkAWSProfileFlow(serverId: string): Promise<void> {
   const { confirm } = await inquirer.prompt({
     type: "confirm",
     name: "confirm",
-    message: `Unlink AWS profile "${
-      profile?.name || "unknown"
-    }" from this server?`,
+    message: `Unlink AWS profile "${profile?.name || "unknown"
+      }" from this server?`,
     default: true,
   });
 
@@ -1237,8 +1236,8 @@ function displaySyncedFileHeader(
 
   const header = boxen(
     chalk.hex(COLORS.PRIMARY).bold(`${icon} ${syncedFile.name}`) +
-      "\n" +
-      chalk.dim(`on ${server.name}`),
+    "\n" +
+    chalk.dim(`on ${server.name}`),
     {
       padding: { left: 2, right: 2, top: 0, bottom: 0 },
       borderStyle: "round",
@@ -1254,7 +1253,7 @@ function displaySyncedFileHeader(
     chalk.dim("Remote: ") + chalk.white(syncedFile.remote_path),
     syncedFile.last_synced
       ? chalk.dim("Last Synced: ") +
-        chalk.green(format(new Date(syncedFile.last_synced), "PPpp"))
+      chalk.green(format(new Date(syncedFile.last_synced), "PPpp"))
       : chalk.dim("Last Synced: ") + chalk.yellow("Never"),
   ].join("\n");
 
@@ -1277,8 +1276,8 @@ async function addSyncedFileFlow(serverId: string): Promise<void> {
   console.log(
     boxen(
       chalk.hex(COLORS.PRIMARY).bold(`${ICONS.ADD} Add Synced File`) +
-        "\n" +
-        chalk.dim(`to ${server.name}`),
+      "\n" +
+      chalk.dim(`to ${server.name}`),
       {
         padding: { left: 2, right: 2, top: 0, bottom: 0 },
         borderStyle: "round",
@@ -1520,8 +1519,8 @@ async function browseRemoteFileSystem(
         const color = isEnv
           ? chalk.green
           : file.isHidden
-          ? chalk.dim
-          : chalk.white;
+            ? chalk.dim
+            : chalk.white;
         const sizeStr = chalk.dim(`(${formatFileSize(file.size)})`);
 
         choices.push({
@@ -1718,8 +1717,8 @@ async function viewRemoteFile(
         chalk
           .hex(COLORS.PRIMARY)
           .bold(`${ICONS.VIEW} Remote File Contents`) +
-          "\n" +
-          chalk.dim(remotePath),
+        "\n" +
+        chalk.dim(remotePath),
         {
           padding: { left: 2, right: 2, top: 0, bottom: 0 },
           borderStyle: "round",
@@ -1795,19 +1794,19 @@ async function editSyncedFileFlow(
   const remoteChoices: Array<
     { name: string; value: string } | inquirer.Separator
   > = [
-    {
-      name: `${ICONS.EDIT}  Keep current: ${chalk.dim(syncedFile.remote_path)}`,
-      value: "keep",
-    },
-    {
-      name: `${ICONS.EDIT}  Edit manually`,
-      value: "edit",
-    },
-    {
-      name: `${ICONS.BROWSE}  Browse remote server`,
-      value: "browse",
-    },
-  ];
+      {
+        name: `${ICONS.EDIT}  Keep current: ${chalk.dim(syncedFile.remote_path)}`,
+        value: "keep",
+      },
+      {
+        name: `${ICONS.EDIT}  Edit manually`,
+        value: "edit",
+      },
+      {
+        name: `${ICONS.BROWSE}  Browse remote server`,
+        value: "browse",
+      },
+    ];
 
   if (existingFiles.length > 0) {
     remoteChoices.push(
