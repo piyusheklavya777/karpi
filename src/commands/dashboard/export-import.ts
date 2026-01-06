@@ -5,12 +5,12 @@ import boxen from "boxen";
 import chalk from "chalk";
 import ora from "ora";
 import { homedir } from "os";
-import { join } from "path";
+import { join, basename } from "path";
 import { nanoid } from "nanoid";
 import { COLORS } from "../../config/constants";
 import { exportService } from "../../services/export.service";
 import { storageService } from "../../services/storage.service";
-import { APP_VERSION } from "../../config/constants";
+import { profileService } from "../../services/profile.service";
 import type { IExportSelection, IImportDiff } from "../../services/export.service";
 
 const ICONS = {
@@ -25,7 +25,9 @@ const ICONS = {
     UNCHANGED: "⏸️",
     BACK: "←",
     SAVE: "💾",
-    PROFILE: "📋",
+    SHAREABLE: "🔗",
+    EDIT: "✏️",
+    DELETE: "🗑️",
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -36,22 +38,22 @@ export async function exportConfigMenu(): Promise<void> {
     console.clear();
     displayExportHeader();
 
-    const savedProfiles = storageService.getAllExportProfiles();
+    const savedShareables = storageService.getAllShareables();
     const choices: any[] = [];
 
-    // Option to use saved profile
-    if (savedProfiles.length > 0) {
+    // Option to use saved shareable
+    if (savedShareables.length > 0) {
         choices.push(
-            new inquirer.Separator(chalk.dim("─── Saved Profiles ───────────────"))
+            new inquirer.Separator(chalk.dim("─── Saved Shareables ─────────────"))
         );
-        savedProfiles.forEach((profile) => {
+        savedShareables.forEach((shareable) => {
             const itemCount =
-                profile.server_ids.length +
-                profile.aws_profile_ids.length +
-                profile.rds_instance_ids.length;
+                shareable.server_ids.length +
+                shareable.aws_profile_ids.length +
+                shareable.rds_instance_ids.length;
             choices.push({
-                name: `${ICONS.PROFILE}  ${chalk.hex(COLORS.PRIMARY)(profile.name)} ${chalk.dim(`(${itemCount} items)`)}`,
-                value: { type: "profile", id: profile.id },
+                name: `${ICONS.SHAREABLE}  ${chalk.hex(COLORS.PRIMARY)(shareable.name)} ${chalk.dim(`(v${shareable.version}, ${itemCount} items)`)}`,
+                value: { type: "shareable", id: shareable.id },
             });
         });
     }
@@ -60,9 +62,21 @@ export async function exportConfigMenu(): Promise<void> {
         new inquirer.Separator(chalk.dim("─── Actions ──────────────────────"))
     );
     choices.push({
-        name: `${ICONS.CHECK}  ${chalk.bold("Select items to export")}`,
-        value: { type: "select" },
+        name: `${ICONS.NEW}  ${chalk.bold("Create new shareable")}`,
+        value: { type: "create" },
     });
+
+    if (savedShareables.length > 0) {
+        choices.push({
+            name: `${ICONS.EDIT}  ${chalk.bold("Edit shareable")}`,
+            value: { type: "edit" },
+        });
+        choices.push({
+            name: `${ICONS.DELETE}  ${chalk.bold("Delete shareable")}`,
+            value: { type: "delete" },
+        });
+    }
+
     choices.push(
         new inquirer.Separator(chalk.dim("───────────────────────────────────"))
     );
@@ -81,23 +95,51 @@ export async function exportConfigMenu(): Promise<void> {
 
     if (selection.type === "back") return;
 
-    if (selection.type === "profile") {
-        // Use saved profile
-        const profile = storageService.getExportProfile(selection.id);
-        if (profile) {
+    if (selection.type === "shareable") {
+        // Export using saved shareable
+        const shareable = storageService.getShareable(selection.id);
+        if (shareable) {
+            // Increment version
+            shareable.version += 1;
+            shareable.last_used = new Date().toISOString();
+            storageService.saveShareable(shareable);
+
             await performExport({
-                server_ids: profile.server_ids,
-                aws_profile_ids: profile.aws_profile_ids,
-                rds_instance_ids: profile.rds_instance_ids,
+                server_ids: shareable.server_ids,
+                aws_profile_ids: shareable.aws_profile_ids,
+                rds_instance_ids: shareable.rds_instance_ids,
+                shareable_name: shareable.name,
+                shareable_version: shareable.version,
             });
         }
-    } else if (selection.type === "select") {
-        // Show selection UI
-        await selectAndExport();
+    } else if (selection.type === "create") {
+        await createNewShareable();
+    } else if (selection.type === "edit") {
+        await editShareable();
+    } else if (selection.type === "delete") {
+        await deleteShareable();
     }
 }
 
-async function selectAndExport(): Promise<void> {
+// ─────────────────────────────────────────────────────────────────────────────
+// Create New Shareable
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function createNewShareable(): Promise<void> {
+    // First ask for name
+    const { shareableName } = await inquirer.prompt({
+        type: "input",
+        name: "shareableName",
+        message: chalk.hex(COLORS.SECONDARY)("Name this export:"),
+        validate: (input: string) => {
+            if (input.length === 0) return "Name is required";
+            if (storageService.getShareableByName(input)) {
+                return "A shareable with this name already exists";
+            }
+            return true;
+        },
+    });
+
     const items = exportService.getExportableItems();
 
     if (
@@ -110,7 +152,7 @@ async function selectAndExport(): Promise<void> {
         return;
     }
 
-    // Build checkbox choices
+    // Build checkbox choices - NOT pre-selected
     const choices: any[] = [];
 
     if (items.servers.length > 0) {
@@ -121,7 +163,7 @@ async function selectAndExport(): Promise<void> {
             choices.push({
                 name: `${ICONS.SERVER}  ${server.name} ${chalk.dim(`(${server.host})`)}`,
                 value: { type: "server", id: server.id },
-                checked: true,
+                checked: false, // NOT pre-selected
             });
         });
     }
@@ -136,7 +178,7 @@ async function selectAndExport(): Promise<void> {
             choices.push({
                 name: `${ICONS.AWS}  ${profile.name} ${chalk.dim(`(${profile.auth_type})`)}`,
                 value: { type: "aws", id: profile.id },
-                checked: true,
+                checked: false,
             });
         });
     }
@@ -151,7 +193,7 @@ async function selectAndExport(): Promise<void> {
             choices.push({
                 name: `${ICONS.RDS}  ${rds.name} ${chalk.dim(`(${rds.endpoint.substring(0, 30)}...)`)}`,
                 value: { type: "rds", id: rds.id },
-                checked: true,
+                checked: false,
             });
         });
     }
@@ -159,7 +201,7 @@ async function selectAndExport(): Promise<void> {
     const { selectedItems } = await inquirer.prompt({
         type: "checkbox",
         name: "selectedItems",
-        message: chalk.hex(COLORS.SECONDARY)("Select items to export:"),
+        message: chalk.hex(COLORS.SECONDARY)("Select items to include:"),
         choices,
         pageSize: 20,
     });
@@ -181,50 +223,214 @@ async function selectAndExport(): Promise<void> {
         rds_instance_ids: selectedItems
             .filter((i: any) => i.type === "rds")
             .map((i: any) => i.id),
+        shareable_name: shareableName,
+        shareable_version: 1,
     };
 
-    // Ask to save as profile
-    const { saveProfile } = await inquirer.prompt({
-        type: "confirm",
-        name: "saveProfile",
-        message: chalk.hex(COLORS.SECONDARY)(
-            "Save this selection as a reusable profile?"
-        ),
-        default: false,
+    // Save shareable
+    storageService.saveShareable({
+        id: nanoid(),
+        name: shareableName,
+        version: 1,
+        server_ids: selection.server_ids,
+        aws_profile_ids: selection.aws_profile_ids,
+        rds_instance_ids: selection.rds_instance_ids,
+        created_at: new Date().toISOString(),
     });
 
-    if (saveProfile) {
-        const { profileName } = await inquirer.prompt({
-            type: "input",
-            name: "profileName",
-            message: chalk.hex(COLORS.SECONDARY)("Profile name:"),
-            validate: (input: string) =>
-                input.length > 0 ? true : "Name is required",
-        });
-
-        storageService.saveExportProfile({
-            id: nanoid(),
-            name: profileName,
-            server_ids: selection.server_ids,
-            aws_profile_ids: selection.aws_profile_ids,
-            rds_instance_ids: selection.rds_instance_ids,
-            created_at: new Date().toISOString(),
-        });
-
-        console.log(
-            chalk.green(`\n${ICONS.SAVE} Profile "${profileName}" saved!`)
-        );
-    }
+    console.log(chalk.green(`\n${ICONS.SAVE} Shareable "${shareableName}" created!`));
 
     await performExport(selection);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Edit Shareable
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function editShareable(): Promise<void> {
+    const savedShareables = storageService.getAllShareables();
+
+    if (savedShareables.length === 0) {
+        console.log(chalk.yellow("\n⚠️  No shareables to edit."));
+        await waitForEnter();
+        return;
+    }
+
+    // Select which shareable to edit
+    const { shareableId } = await inquirer.prompt({
+        type: "list",
+        name: "shareableId",
+        message: chalk.hex(COLORS.SECONDARY)("Select shareable to edit:"),
+        choices: savedShareables.map((s) => ({
+            name: `${ICONS.SHAREABLE}  ${s.name} (v${s.version})`,
+            value: s.id,
+        })),
+    });
+
+    const shareable = storageService.getShareable(shareableId);
+    if (!shareable) return;
+
+    // What to edit
+    const { editAction } = await inquirer.prompt({
+        type: "list",
+        name: "editAction",
+        message: chalk.hex(COLORS.SECONDARY)("What would you like to edit?"),
+        choices: [
+            { name: `${ICONS.EDIT}  Rename`, value: "rename" },
+            { name: `${ICONS.CHECK}  Change items`, value: "items" },
+            { name: `${ICONS.BACK}  Cancel`, value: "cancel" },
+        ],
+    });
+
+    if (editAction === "cancel") return;
+
+    if (editAction === "rename") {
+        const { newName } = await inquirer.prompt({
+            type: "input",
+            name: "newName",
+            message: chalk.hex(COLORS.SECONDARY)("New name:"),
+            default: shareable.name,
+            validate: (input: string) => {
+                if (input.length === 0) return "Name is required";
+                const existing = storageService.getShareableByName(input);
+                if (existing && existing.id !== shareable.id) {
+                    return "A shareable with this name already exists";
+                }
+                return true;
+            },
+        });
+
+        shareable.name = newName;
+        storageService.saveShareable(shareable);
+        console.log(chalk.green(`\n${ICONS.CHECK} Shareable renamed to "${newName}"`));
+    } else if (editAction === "items") {
+        const items = exportService.getExportableItems();
+        const choices: any[] = [];
+
+        if (items.servers.length > 0) {
+            choices.push(
+                new inquirer.Separator(chalk.hex(COLORS.PRIMARY).bold("─── Servers ───"))
+            );
+            items.servers.forEach((server) => {
+                choices.push({
+                    name: `${ICONS.SERVER}  ${server.name} ${chalk.dim(`(${server.host})`)}`,
+                    value: { type: "server", id: server.id },
+                    checked: shareable.server_ids.includes(server.id),
+                });
+            });
+        }
+
+        if (items.aws_profiles.length > 0) {
+            choices.push(
+                new inquirer.Separator(
+                    chalk.hex(COLORS.PRIMARY).bold("─── AWS Profiles ───")
+                )
+            );
+            items.aws_profiles.forEach((profile) => {
+                choices.push({
+                    name: `${ICONS.AWS}  ${profile.name}`,
+                    value: { type: "aws", id: profile.id },
+                    checked: shareable.aws_profile_ids.includes(profile.id),
+                });
+            });
+        }
+
+        if (items.rds_instances.length > 0) {
+            choices.push(
+                new inquirer.Separator(
+                    chalk.hex(COLORS.PRIMARY).bold("─── RDS Instances ───")
+                )
+            );
+            items.rds_instances.forEach((rds) => {
+                choices.push({
+                    name: `${ICONS.RDS}  ${rds.name}`,
+                    value: { type: "rds", id: rds.id },
+                    checked: shareable.rds_instance_ids.includes(rds.id),
+                });
+            });
+        }
+
+        const { selectedItems } = await inquirer.prompt({
+            type: "checkbox",
+            name: "selectedItems",
+            message: chalk.hex(COLORS.SECONDARY)("Select items to include:"),
+            choices,
+            pageSize: 20,
+        });
+
+        shareable.server_ids = selectedItems
+            .filter((i: any) => i.type === "server")
+            .map((i: any) => i.id);
+        shareable.aws_profile_ids = selectedItems
+            .filter((i: any) => i.type === "aws")
+            .map((i: any) => i.id);
+        shareable.rds_instance_ids = selectedItems
+            .filter((i: any) => i.type === "rds")
+            .map((i: any) => i.id);
+
+        storageService.saveShareable(shareable);
+        console.log(chalk.green(`\n${ICONS.CHECK} Shareable items updated!`));
+    }
+
+    await waitForEnter();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Delete Shareable
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function deleteShareable(): Promise<void> {
+    const savedShareables = storageService.getAllShareables();
+
+    if (savedShareables.length === 0) {
+        console.log(chalk.yellow("\n⚠️  No shareables to delete."));
+        await waitForEnter();
+        return;
+    }
+
+    const { shareableId } = await inquirer.prompt({
+        type: "list",
+        name: "shareableId",
+        message: chalk.hex(COLORS.SECONDARY)("Select shareable to delete:"),
+        choices: savedShareables.map((s) => ({
+            name: `${ICONS.SHAREABLE}  ${s.name} (v${s.version})`,
+            value: s.id,
+        })),
+    });
+
+    const shareable = storageService.getShareable(shareableId);
+    if (!shareable) return;
+
+    const { confirmDelete } = await inquirer.prompt({
+        type: "confirm",
+        name: "confirmDelete",
+        message: chalk.red(`Delete "${shareable.name}"? This cannot be undone.`),
+        default: false,
+    });
+
+    if (confirmDelete) {
+        storageService.deleteShareable(shareableId);
+        console.log(chalk.green(`\n${ICONS.CHECK} Shareable deleted.`));
+    } else {
+        console.log(chalk.dim("\nCancelled."));
+    }
+
+    await waitForEnter();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Perform Export
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function performExport(selection: IExportSelection): Promise<void> {
-    // Version-based filename
+    // Version-based filename using shareable name
+    const safeName = (selection.shareable_name || "export")
+        .replace(/[^a-zA-Z0-9-_]/g, "-")
+        .toLowerCase();
     const defaultPath = join(
         homedir(),
         "Desktop",
-        `karpi-config-v${APP_VERSION}.yaml`
+        `${safeName}-v${selection.shareable_version || 1}.yaml`
     );
 
     const { outputPath, embedKeys } = await inquirer.prompt([
@@ -252,6 +458,21 @@ async function performExport(selection: IExportSelection): Promise<void> {
     if (result.success) {
         spinner.succeed(chalk.green(`${ICONS.CHECK} Configuration exported!`));
         console.log(chalk.dim(`\nSaved to: ${result.path}`));
+
+        // Log the export
+        const activeProfile = profileService.getActiveProfile();
+        if (activeProfile && selection.shareable_name) {
+            await exportService.logExport({
+                username: activeProfile.username,
+                shareable_name: selection.shareable_name,
+                shareable_version: selection.shareable_version || 1,
+                filename: basename(outputPath),
+                items_count:
+                    selection.server_ids.length +
+                    selection.aws_profile_ids.length +
+                    selection.rds_instance_ids.length,
+            });
+        }
     } else {
         spinner.fail(chalk.red(`Export failed: ${result.error}`));
     }

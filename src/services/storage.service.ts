@@ -11,7 +11,7 @@ import type {
   IBackgroundProcess,
   IAWSProfile,
   IRDSInstance,
-  IExportProfile,
+  IShareable,
 } from "../types";
 import {
   APP_VERSION,
@@ -39,7 +39,7 @@ export class StorageService {
         processes: [],
         aws_profiles: [],
         rds_instances: [],
-        export_profiles: [],
+        shareables: [],
         preferences: {
           theme: "dark",
           auto_logout_minutes: 30,
@@ -341,45 +341,45 @@ export class StorageService {
     return true;
   }
 
-  // Export Profile management
-  getAllExportProfiles(): IExportProfile[] {
-    return this.config.get("export_profiles", []);
+  // Shareable management
+  getAllShareables(): IShareable[] {
+    return this.config.get("shareables", []);
   }
 
-  getExportProfile(id: string): IExportProfile | undefined {
-    const profiles = this.getAllExportProfiles();
-    return profiles.find((p) => p.id === id);
+  getShareable(id: string): IShareable | undefined {
+    const shareables = this.getAllShareables();
+    return shareables.find((s) => s.id === id);
   }
 
-  getExportProfileByName(name: string): IExportProfile | undefined {
-    const profiles = this.getAllExportProfiles();
-    return profiles.find((p) => p.name === name);
+  getShareableByName(name: string): IShareable | undefined {
+    const shareables = this.getAllShareables();
+    return shareables.find((s) => s.name === name);
   }
 
-  saveExportProfile(profile: IExportProfile): void {
-    const profiles = this.getAllExportProfiles();
-    const existingIndex = profiles.findIndex((p) => p.id === profile.id);
+  saveShareable(shareable: IShareable): void {
+    const shareables = this.getAllShareables();
+    const existingIndex = shareables.findIndex((s) => s.id === shareable.id);
 
     if (existingIndex >= 0) {
-      profiles[existingIndex] = profile;
+      shareables[existingIndex] = shareable;
     } else {
-      profiles.push(profile);
+      shareables.push(shareable);
     }
 
-    this.config.set("export_profiles", profiles);
-    logger.debug(`Export Profile saved: ${profile.name}`);
+    this.config.set("shareables", shareables);
+    logger.debug(`Shareable saved: ${shareable.name}`);
   }
 
-  deleteExportProfile(id: string): boolean {
-    const profiles = this.getAllExportProfiles();
-    const filtered = profiles.filter((p) => p.id !== id);
+  deleteShareable(id: string): boolean {
+    const shareables = this.getAllShareables();
+    const filtered = shareables.filter((s) => s.id !== id);
 
-    if (filtered.length === profiles.length) {
+    if (filtered.length === shareables.length) {
       return false;
     }
 
-    this.config.set("export_profiles", filtered);
-    logger.debug(`Export Profile deleted: ${id}`);
+    this.config.set("shareables", filtered);
+    logger.debug(`Shareable deleted: ${id}`);
     return true;
   }
 

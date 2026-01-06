@@ -22,6 +22,9 @@ export interface IExportConfig {
     $schema: string;
     version: string;
     exported_at: string;
+    exported_by?: string; // Username who exported
+    shareable_name?: string; // Name of the shareable used
+    shareable_version?: number; // Version of the shareable
     servers: IExportServer[];
     aws_profiles: IExportAWSProfile[];
     rds_instances: IExportRDSInstance[];
@@ -112,6 +115,9 @@ export interface IExportSelection {
     server_ids: string[];
     aws_profile_ids: string[];
     rds_instance_ids: string[];
+    // Shareable metadata (optional)
+    shareable_name?: string;
+    shareable_version?: number;
 }
 
 // Items that can be exported (returned by getExportableItems)
@@ -155,9 +161,11 @@ export interface IImportDiff {
 
 export class ExportService {
     private keysDir: string;
+    private logPath: string;
 
     constructor() {
         this.keysDir = join(homedir(), CONFIG_DIR, "keys");
+        this.logPath = join(homedir(), CONFIG_DIR, "export-log.json");
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -757,11 +765,14 @@ export class ExportService {
                 selection.rds_instance_ids.includes(r.id)
             );
 
-            // Build export config
+            // Build export config with metadata
             const exportConfig: IExportConfig = {
                 $schema: "https://karpi.dev/schemas/config-v1.yaml",
                 version: APP_VERSION,
                 exported_at: new Date().toISOString(),
+                exported_by: activeProfile?.username,
+                shareable_name: selection.shareable_name,
+                shareable_version: selection.shareable_version,
                 servers: [],
                 aws_profiles: [],
                 rds_instances: [],
@@ -990,8 +1001,79 @@ export class ExportService {
 
         return changes;
     }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Export Logging
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Log an export to the export log file
+     */
+    async logExport(entry: {
+        username: string;
+        shareable_name: string;
+        shareable_version: number;
+        filename: string;
+        items_count: number;
+    }): Promise<void> {
+        try {
+            let logs: Array<{
+                timestamp: string;
+                username: string;
+                shareable_name: string;
+                shareable_version: number;
+                filename: string;
+                items_count: number;
+            }> = [];
+
+            // Read existing logs
+            try {
+                const content = await readFile(this.logPath, "utf-8");
+                logs = JSON.parse(content);
+            } catch {
+                // File doesn't exist yet, start fresh
+            }
+
+            // Add new entry
+            logs.push({
+                timestamp: new Date().toISOString(),
+                ...entry,
+            });
+
+            // Keep only last 100 entries
+            if (logs.length > 100) {
+                logs = logs.slice(-100);
+            }
+
+            // Write back
+            await writeFile(this.logPath, JSON.stringify(logs, null, 2), "utf-8");
+            logger.debug(`Export logged: ${entry.shareable_name} v${entry.shareable_version}`);
+        } catch (error) {
+            logger.error(`Failed to log export: ${error}`);
+        }
+    }
+
+    /**
+     * Get export logs
+     */
+    async getExportLogs(): Promise<Array<{
+        timestamp: string;
+        username: string;
+        shareable_name: string;
+        shareable_version: number;
+        filename: string;
+        items_count: number;
+    }>> {
+        try {
+            const content = await readFile(this.logPath, "utf-8");
+            return JSON.parse(content);
+        } catch {
+            return [];
+        }
+    }
 }
 
 // Singleton instance
 export const exportService = new ExportService();
+
 

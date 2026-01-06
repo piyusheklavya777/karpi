@@ -66,21 +66,34 @@ export interface IStorageConfig {
   preferences: IGlobalPreferences;
   aws_profiles: IAWSProfile[]; // AWS credential profiles
   rds_instances: IRDSInstance[]; // RDS database instances
-  export_profiles: IExportProfile[]; // Saved export selection presets
+  shareables: IShareable[]; // Saved export selection presets
 }
 
 /**
- * Export Profile - saved selection preset for exporting configs
+ * Shareable - saved selection preset for exporting configs
  * Allows users to save named selections like "dev-team", "ops-team"
  */
-export interface IExportProfile {
+export interface IShareable {
   id: string;
   name: string; // User-defined name (e.g., "dev-team", "ops-team")
+  version: number; // Auto-increments on each export (v1, v2, etc.)
   server_ids: string[]; // IDs of selected servers
   aws_profile_ids: string[]; // IDs of selected AWS profiles
   rds_instance_ids: string[]; // IDs of selected RDS instances
   created_at: string;
   last_used?: string;
+}
+
+/**
+ * Export log entry - tracks who exported what and when
+ */
+export interface IExportLogEntry {
+  timestamp: string;
+  username: string;
+  shareable_name: string;
+  shareable_version: number;
+  filename: string;
+  items_count: number;
 }
 
 export interface IServerConfig {
