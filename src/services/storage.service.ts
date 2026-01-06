@@ -11,6 +11,7 @@ import type {
   IBackgroundProcess,
   IAWSProfile,
   IRDSInstance,
+  IExportProfile,
 } from "../types";
 import {
   APP_VERSION,
@@ -38,6 +39,7 @@ export class StorageService {
         processes: [],
         aws_profiles: [],
         rds_instances: [],
+        export_profiles: [],
         preferences: {
           theme: "dark",
           auto_logout_minutes: 30,
@@ -336,6 +338,48 @@ export class StorageService {
 
     this.config.set("rds_instances", filtered);
     logger.debug(`RDS Instance deleted: ${id}`);
+    return true;
+  }
+
+  // Export Profile management
+  getAllExportProfiles(): IExportProfile[] {
+    return this.config.get("export_profiles", []);
+  }
+
+  getExportProfile(id: string): IExportProfile | undefined {
+    const profiles = this.getAllExportProfiles();
+    return profiles.find((p) => p.id === id);
+  }
+
+  getExportProfileByName(name: string): IExportProfile | undefined {
+    const profiles = this.getAllExportProfiles();
+    return profiles.find((p) => p.name === name);
+  }
+
+  saveExportProfile(profile: IExportProfile): void {
+    const profiles = this.getAllExportProfiles();
+    const existingIndex = profiles.findIndex((p) => p.id === profile.id);
+
+    if (existingIndex >= 0) {
+      profiles[existingIndex] = profile;
+    } else {
+      profiles.push(profile);
+    }
+
+    this.config.set("export_profiles", profiles);
+    logger.debug(`Export Profile saved: ${profile.name}`);
+  }
+
+  deleteExportProfile(id: string): boolean {
+    const profiles = this.getAllExportProfiles();
+    const filtered = profiles.filter((p) => p.id !== id);
+
+    if (filtered.length === profiles.length) {
+      return false;
+    }
+
+    this.config.set("export_profiles", filtered);
+    logger.debug(`Export Profile deleted: ${id}`);
     return true;
   }
 

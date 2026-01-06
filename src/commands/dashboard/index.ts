@@ -13,6 +13,7 @@ import { serversMenu } from "./servers";
 import { awsProfilesMenu } from "./aws-profiles";
 import { rdsMenu } from "./rds";
 import { utilitiesMenu } from "./utilities";
+import { exportConfigMenu, importConfigMenu } from "./export-import";
 import { serverService } from "../../services/server.service";
 import type {
   IRecentAction,
@@ -114,6 +115,21 @@ export async function dashboardCommand(): Promise<void> {
         "Utilities"
       )}              ${chalk.dim("Port tools & more")}`,
       value: { type: "standard", data: "utilities" },
+    });
+    choices.push(
+      new inquirer.Separator(chalk.dim("  "))
+    );
+    choices.push({
+      name: `  📦  ${chalk.bold(
+        "Export Config"
+      )}         ${chalk.dim("Save config to YAML")}`,
+      value: { type: "standard", data: "export" },
+    });
+    choices.push({
+      name: `  📥  ${chalk.bold(
+        "Import Config"
+      )}         ${chalk.dim("Load config from file")}`,
+      value: { type: "standard", data: "import" },
     });
 
     // ═══════════════════════════════════════════════════════════
@@ -230,6 +246,12 @@ export async function dashboardCommand(): Promise<void> {
         case "utilities":
           await utilitiesMenu();
           break;
+        case "export":
+          await exportConfigMenu();
+          break;
+        case "import":
+          await importConfigMenu();
+          break;
         case "profile":
           displayProfileInfo(current.profile);
           await waitForEnter();
@@ -313,15 +335,14 @@ function displayDashboard(profile: IUserProfile): void {
     ),
     "",
     chalk.dim("Last login: ") +
-      chalk.white(format(new Date(profile.last_login), "PPpp")),
+    chalk.white(format(new Date(profile.last_login), "PPpp")),
     "",
     chalk.dim("────────────────────────────────────────"),
     "",
     `${MENU_ICONS.SERVERS} ${chalk.white(servers.length)} servers   ` +
-      `${MENU_ICONS.RDS} ${chalk.white(rdsInstances.length)} databases   ` +
-      `${
-        processes.length > 0 ? MENU_ICONS.ONLINE : MENU_ICONS.OFFLINE
-      } ${chalk.white(processes.length)} active`,
+    `${MENU_ICONS.RDS} ${chalk.white(rdsInstances.length)} databases   ` +
+    `${processes.length > 0 ? MENU_ICONS.ONLINE : MENU_ICONS.OFFLINE
+    } ${chalk.white(processes.length)} active`,
   ].join("\n");
 
   console.log(

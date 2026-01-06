@@ -107,6 +107,48 @@ export interface IImportOptions {
     keysDir?: string; // Directory to look for PEM files (relative to import file)
 }
 
+// Selection for export - specifies which items to include
+export interface IExportSelection {
+    server_ids: string[];
+    aws_profile_ids: string[];
+    rds_instance_ids: string[];
+}
+
+// Items that can be exported (returned by getExportableItems)
+export interface IExportableItems {
+    servers: Array<{ id: string; name: string; host: string }>;
+    aws_profiles: Array<{ id: string; name: string; auth_type: string }>;
+    rds_instances: Array<{ id: string; name: string; endpoint: string }>;
+}
+
+// Diff result for import preview
+export interface IImportDiff {
+    new_items: {
+        servers: IExportServer[];
+        aws_profiles: IExportAWSProfile[];
+        rds_instances: IExportRDSInstance[];
+    };
+    modified_items: {
+        servers: Array<{
+            name: string;
+            changes: Array<{ field: string; from: string; to: string }>;
+        }>;
+        aws_profiles: Array<{
+            name: string;
+            changes: Array<{ field: string; from: string; to: string }>;
+        }>;
+        rds_instances: Array<{
+            name: string;
+            changes: Array<{ field: string; from: string; to: string }>;
+        }>;
+    };
+    unchanged: {
+        servers: string[];
+        aws_profiles: string[];
+        rds_instances: string[];
+    };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Export Service Class
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -655,7 +697,301 @@ export class ExportService {
             };
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Selection-Based Export
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Get all items that can be exported for selection UI
+     */
+    getExportableItems(): IExportableItems {
+        const activeProfile = storageService.getActiveProfile();
+        if (!activeProfile) {
+            return { servers: [], aws_profiles: [], rds_instances: [] };
+        }
+
+        const servers = storageService.getServersByProfileId(activeProfile.id);
+        const awsProfiles = storageService.getAllAWSProfiles();
+        const rdsInstances = storageService.getRDSByProfileId(activeProfile.id);
+
+        return {
+            servers: servers.map((s) => ({ id: s.id, name: s.name, host: s.host })),
+            aws_profiles: awsProfiles.map((p) => ({
+                id: p.id,
+                name: p.name,
+                auth_type: p.auth_type,
+            })),
+            rds_instances: rdsInstances.map((r) => ({
+                id: r.id,
+                name: r.name,
+                endpoint: r.endpoint,
+            })),
+        };
+    }
+
+    /**
+     * Export only selected items
+     */
+    async exportSelectedConfig(
+        selection: IExportSelection,
+        outputPath: string,
+        options: IExportOptions = {}
+    ): Promise<{ success: boolean; path: string; error?: string }> {
+        try {
+            const activeProfile = storageService.getActiveProfile();
+            if (!activeProfile) {
+                return { success: false, path: outputPath, error: "No active profile" };
+            }
+
+            // Get only selected items
+            const allServers = storageService.getServersByProfileId(activeProfile.id);
+            const allAWSProfiles = storageService.getAllAWSProfiles();
+            const allRDSInstances = storageService.getRDSByProfileId(activeProfile.id);
+
+            const servers = allServers.filter((s) => selection.server_ids.includes(s.id));
+            const awsProfiles = allAWSProfiles.filter((p) =>
+                selection.aws_profile_ids.includes(p.id)
+            );
+            const rdsInstances = allRDSInstances.filter((r) =>
+                selection.rds_instance_ids.includes(r.id)
+            );
+
+            // Build export config
+            const exportConfig: IExportConfig = {
+                $schema: "https://karpi.dev/schemas/config-v1.yaml",
+                version: APP_VERSION,
+                exported_at: new Date().toISOString(),
+                servers: [],
+                aws_profiles: [],
+                rds_instances: [],
+            };
+
+            // Export AWS profiles first
+            const awsProfileNameMap = new Map<string, string>();
+            for (const profile of awsProfiles) {
+                awsProfileNameMap.set(profile.id, profile.name);
+                exportConfig.aws_profiles.push(this.exportAWSProfile(profile));
+            }
+
+            // Export servers
+            const outputDir = dirname(outputPath);
+            const keysExportDir = join(outputDir, options.outputDir || "keys");
+
+            for (const server of servers) {
+                const exportedServer = await this.exportServer(
+                    server,
+                    awsProfileNameMap,
+                    options,
+                    keysExportDir,
+                    outputDir
+                );
+                exportConfig.servers.push(exportedServer);
+            }
+
+            // Export RDS instances
+            const serverNameMap = new Map<string, string>();
+            for (const server of servers) {
+                serverNameMap.set(server.id, server.name);
+            }
+
+            for (const rds of rdsInstances) {
+                exportConfig.rds_instances.push(
+                    this.exportRDSInstance(rds, awsProfileNameMap, serverNameMap)
+                );
+            }
+
+            // Write YAML file
+            const yamlContent = YAML.stringify(exportConfig, {
+                indent: 2,
+                lineWidth: 0,
+            });
+
+            await mkdir(dirname(outputPath), { recursive: true });
+            await writeFile(outputPath, yamlContent, "utf-8");
+
+            logger.info(`Selected config exported to: ${outputPath}`);
+            return { success: true, path: outputPath };
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            logger.error(`Export failed: ${errorMsg}`);
+            return { success: false, path: outputPath, error: errorMsg };
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Import Diff Preview
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Get detailed diff of what would be imported (new vs modified vs unchanged)
+     */
+    async getImportDiff(inputPath: string): Promise<IImportDiff> {
+        const diff: IImportDiff = {
+            new_items: { servers: [], aws_profiles: [], rds_instances: [] },
+            modified_items: { servers: [], aws_profiles: [], rds_instances: [] },
+            unchanged: { servers: [], aws_profiles: [], rds_instances: [] },
+        };
+
+        try {
+            const content = await readFile(inputPath, "utf-8");
+            const config = YAML.parse(content) as IExportConfig;
+
+            const activeProfile = storageService.getActiveProfile();
+            if (!activeProfile) return diff;
+
+            // Check AWS profiles
+            for (const importProfile of config.aws_profiles || []) {
+                const existing = storageService.getAWSProfileByName(importProfile.name);
+                if (!existing) {
+                    diff.new_items.aws_profiles.push(importProfile);
+                } else {
+                    const changes = this.compareAWSProfile(existing, importProfile);
+                    if (changes.length > 0) {
+                        diff.modified_items.aws_profiles.push({
+                            name: importProfile.name,
+                            changes,
+                        });
+                    } else {
+                        diff.unchanged.aws_profiles.push(importProfile.name);
+                    }
+                }
+            }
+
+            // Check servers
+            const existingServers = storageService.getServersByProfileId(activeProfile.id);
+            for (const importServer of config.servers || []) {
+                const existing = existingServers.find((s) => s.name === importServer.name);
+                if (!existing) {
+                    diff.new_items.servers.push(importServer);
+                } else {
+                    const changes = this.compareServer(existing, importServer);
+                    if (changes.length > 0) {
+                        diff.modified_items.servers.push({
+                            name: importServer.name,
+                            changes,
+                        });
+                    } else {
+                        diff.unchanged.servers.push(importServer.name);
+                    }
+                }
+            }
+
+            // Check RDS instances
+            const existingRDS = storageService.getRDSByProfileId(activeProfile.id);
+            for (const importRDS of config.rds_instances || []) {
+                const existing = existingRDS.find(
+                    (r) => r.db_instance_identifier === importRDS.db_instance_identifier
+                );
+                if (!existing) {
+                    diff.new_items.rds_instances.push(importRDS);
+                } else {
+                    const changes = this.compareRDS(existing, importRDS);
+                    if (changes.length > 0) {
+                        diff.modified_items.rds_instances.push({
+                            name: importRDS.name,
+                            changes,
+                        });
+                    } else {
+                        diff.unchanged.rds_instances.push(importRDS.name);
+                    }
+                }
+            }
+
+            return diff;
+        } catch (error) {
+            logger.error(`Diff failed: ${error}`);
+            return diff;
+        }
+    }
+
+    private compareAWSProfile(
+        existing: IAWSProfile,
+        imported: IExportAWSProfile
+    ): Array<{ field: string; from: string; to: string }> {
+        const changes: Array<{ field: string; from: string; to: string }> = [];
+
+        if (existing.auth_type !== imported.auth_type) {
+            changes.push({
+                field: "auth_type",
+                from: existing.auth_type,
+                to: imported.auth_type,
+            });
+        }
+        if (existing.default_region !== imported.default_region) {
+            changes.push({
+                field: "default_region",
+                from: existing.default_region,
+                to: imported.default_region,
+            });
+        }
+        if (existing.cli_profile_name !== imported.cli_profile_name) {
+            changes.push({
+                field: "cli_profile_name",
+                from: existing.cli_profile_name || "",
+                to: imported.cli_profile_name || "",
+            });
+        }
+
+        return changes;
+    }
+
+    private compareServer(
+        existing: IServerConfig,
+        imported: IExportServer
+    ): Array<{ field: string; from: string; to: string }> {
+        const changes: Array<{ field: string; from: string; to: string }> = [];
+
+        if (existing.host !== imported.host) {
+            changes.push({ field: "host", from: existing.host, to: imported.host });
+        }
+        if (existing.username !== imported.username) {
+            changes.push({
+                field: "username",
+                from: existing.username,
+                to: imported.username,
+            });
+        }
+
+        // Compare tunnel count
+        const existingTunnelCount = existing.tunnels?.length || 0;
+        const importedTunnelCount = imported.tunnels?.length || 0;
+        if (existingTunnelCount !== importedTunnelCount) {
+            changes.push({
+                field: "tunnels",
+                from: `${existingTunnelCount} tunnels`,
+                to: `${importedTunnelCount} tunnels`,
+            });
+        }
+
+        return changes;
+    }
+
+    private compareRDS(
+        existing: IRDSInstance,
+        imported: IExportRDSInstance
+    ): Array<{ field: string; from: string; to: string }> {
+        const changes: Array<{ field: string; from: string; to: string }> = [];
+
+        if (existing.endpoint !== imported.endpoint) {
+            changes.push({
+                field: "endpoint",
+                from: existing.endpoint,
+                to: imported.endpoint,
+            });
+        }
+        if (existing.port !== imported.port) {
+            changes.push({
+                field: "port",
+                from: String(existing.port),
+                to: String(imported.port),
+            });
+        }
+
+        return changes;
+    }
 }
 
 // Singleton instance
 export const exportService = new ExportService();
+

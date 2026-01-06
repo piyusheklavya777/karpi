@@ -65,6 +65,21 @@ export interface IStorageConfig {
   preferences: IGlobalPreferences;
   aws_profiles: IAWSProfile[]; // AWS credential profiles
   rds_instances: IRDSInstance[]; // RDS database instances
+  export_profiles: IExportProfile[]; // Saved export selection presets
+}
+
+/**
+ * Export Profile - saved selection preset for exporting configs
+ * Allows users to save named selections like "dev-team", "ops-team"
+ */
+export interface IExportProfile {
+  id: string;
+  name: string; // User-defined name (e.g., "dev-team", "ops-team")
+  server_ids: string[]; // IDs of selected servers
+  aws_profile_ids: string[]; // IDs of selected AWS profiles
+  rds_instance_ids: string[]; // IDs of selected RDS instances
+  created_at: string;
+  last_used?: string;
 }
 
 export interface IServerConfig {
@@ -161,12 +176,12 @@ export interface IAWSInstance {
   public_ip?: string;
   private_ip?: string;
   state:
-    | "running"
-    | "stopped"
-    | "pending"
-    | "terminated"
-    | "stopping"
-    | "shutting-down";
+  | "running"
+  | "stopped"
+  | "pending"
+  | "terminated"
+  | "stopping"
+  | "shutting-down";
   instance_type: string;
   key_name?: string; // SSH key pair name
   launch_time: string;
