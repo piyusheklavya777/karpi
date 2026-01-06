@@ -8,6 +8,7 @@ export interface IUserProfile {
   last_login: string;
   preferences: IUserPreferences;
   recent_actions: IRecentAction[];
+  biometric_enabled?: boolean; // Touch ID enabled for this profile
 }
 
 export interface IRecentAction {

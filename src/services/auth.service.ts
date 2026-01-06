@@ -159,6 +159,60 @@ export class AuthService {
   }
 
   /**
+   * Login with biometric (Touch ID) - no password needed
+   * Should only be called after successful biometric verification
+   */
+  async loginWithBiometric(username: string): Promise<ILoginResponse> {
+    try {
+      // Get profile
+      const profile = profileService.getProfileByUsername(username);
+      if (!profile) {
+        return {
+          success: false,
+          error: "Profile not found",
+        };
+      }
+
+      // Check if biometric is enabled for this profile
+      if (!profile.biometric_enabled) {
+        return {
+          success: false,
+          error: "Biometric not enabled for this profile",
+        };
+      }
+
+      // Check for existing session
+      let session = storageService.getSessionByProfileId(profile.id);
+
+      if (session && !CryptoUtil.isSessionExpired(session)) {
+        // Use existing session
+        logger.info(`Existing session found for: ${username}`);
+      } else {
+        // Create new session
+        session = this.createSession(profile);
+        storageService.saveSession(session);
+      }
+
+      // Set as active profile
+      profileService.setActiveProfile(profile.id);
+
+      logger.success(`User logged in via Touch ID: ${username}`);
+
+      return {
+        success: true,
+        profile,
+        session,
+      };
+    } catch (error) {
+      logger.error("Biometric login failed", error);
+      return {
+        success: false,
+        error: "Biometric login failed",
+      };
+    }
+  }
+
+  /**
    * Logout current user
    */
   logout(): boolean {

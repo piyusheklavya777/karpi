@@ -6,6 +6,7 @@ import boxen from "boxen";
 import gradient from "gradient-string";
 import { authService } from "../../services/auth.service";
 import { profileService } from "../../services/profile.service";
+import { biometricService } from "../../services/biometric.service";
 import {
   styled,
   UI,
@@ -97,9 +98,8 @@ export async function loginCommand(): Promise<void> {
       message: styled.brand("Select a profile:"),
       choices: [
         ...profiles.map((p) => ({
-          name: `${UI.ICONS.USER} ${styled.accent(p.username)}${
-            p.email ? styled.dimmed(` (${p.email})`) : ""
-          }`,
+          name: `${UI.ICONS.USER} ${styled.accent(p.username)}${p.email ? styled.dimmed(` (${p.email})`) : ""
+            }`,
           value: p.username,
         })),
         {
@@ -115,7 +115,76 @@ export async function loginCommand(): Promise<void> {
     return;
   }
 
-  // Get password
+  // Get the profile to check if biometric is enabled
+  const profile = profileService.getProfile(selectedProfile);
+  const biometricAvailable = await biometricService.isAvailable();
+  const useBiometric = profile?.biometric_enabled && biometricAvailable;
+
+  let authenticated = false;
+
+  if (useBiometric) {
+    // Offer choice: Touch ID or Password
+    const { authMethod } = await inquirer.prompt([
+      {
+        type: "list",
+        name: "authMethod",
+        message: styled.brand("How would you like to login?"),
+        choices: [
+          {
+            name: `🔐 ${styled.primary("Use Touch ID")}`,
+            value: "touchid",
+          },
+          {
+            name: `${UI.ICONS.LOCK} ${styled.secondary("Use Password")}`,
+            value: "password",
+          },
+        ],
+      },
+    ]);
+
+    if (authMethod === "touchid") {
+      const spinner = ora({
+        text: "Authenticating with Touch ID...",
+        color: "cyan",
+      }).start();
+
+      authenticated = await biometricService.authenticate(
+        `Login to Karpi as ${selectedProfile}`
+      );
+
+      spinner.stop();
+
+      if (authenticated) {
+        // Direct login without password - Touch ID verified identity
+        const result = await authService.loginWithBiometric(selectedProfile);
+
+        if (result.success && result.profile) {
+          console.log(
+            boxen(
+              styled.success(
+                `${UI.ICONS.SUCCESS} Welcome back, ${styled.accent(
+                  result.profile.username
+                )}!`
+              ),
+              {
+                padding: 1,
+                margin: 1,
+                borderStyle: "round",
+                borderColor: COLORS.SUCCESS,
+              }
+            )
+          );
+          return;
+        }
+      } else {
+        console.log(
+          styled.warning("\n⚠️ Touch ID failed. Please use password.\n")
+        );
+      }
+    }
+  }
+
+  // Get password (fallback or primary method)
   const { password } = await inquirer.prompt([
     {
       type: "password",
@@ -139,6 +208,23 @@ export async function loginCommand(): Promise<void> {
   spinner.stop();
 
   if (result.success && result.profile) {
+    // After successful password login, offer to enable Touch ID if available
+    if (biometricAvailable && !profile?.biometric_enabled) {
+      const { enableBiometric } = await inquirer.prompt([
+        {
+          type: "confirm",
+          name: "enableBiometric",
+          message: styled.secondary("Enable Touch ID for faster login next time?"),
+          default: true,
+        },
+      ]);
+
+      if (enableBiometric && profile) {
+        profileService.updateProfile(profile.id, { biometric_enabled: true });
+        console.log(styled.success("\n✓ Touch ID enabled for this profile!\n"));
+      }
+    }
+
     console.log(
       boxen(
         styled.success(
@@ -240,8 +326,7 @@ async function createNewProfile(): Promise<void> {
     console.log(
       boxen(
         styled.success(
-          `${
-            UI.ICONS.SUCCESS
+          `${UI.ICONS.SUCCESS
           } Profile created successfully!\nWelcome, ${styled.accent(
             result.profile.username
           )}!`
