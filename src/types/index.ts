@@ -72,13 +72,13 @@ export interface IStorageConfig {
 /**
  * Shareable - saved selection preset for exporting configs
  * Allows users to save named selections like "dev-team", "ops-team"
+ * Note: AWS profiles are NOT included - teammates set up their own credentials
  */
 export interface IShareable {
   id: string;
   name: string; // User-defined name (e.g., "dev-team", "ops-team")
   version: number; // Auto-increments on each export (v1, v2, etc.)
   server_ids: string[]; // IDs of selected servers
-  aws_profile_ids: string[]; // IDs of selected AWS profiles
   rds_instance_ids: string[]; // IDs of selected RDS instances
   created_at: string;
   last_used?: string;

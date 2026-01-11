@@ -108,6 +108,7 @@ export interface IImportOptions {
     dryRun?: boolean; // Preview without making changes
     overwrite?: boolean; // Overwrite existing configs with same name
     keysDir?: string; // Directory to look for PEM files (relative to import file)
+    profileMapping?: Record<string, string>; // Map imported AWS profile names to local profile names
 }
 
 // Selection for export - specifies which items to include

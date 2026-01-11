@@ -43,33 +43,25 @@ export async function utilitiesMenu(): Promise<void> {
         message: chalk.hex(COLORS.SECONDARY)("Select utility:"),
         choices: [
           {
-            name: `${ICONS.SEARCH}  ${chalk.bold(
-              "Check Port"
-            )}        ${chalk.dim("See what's running on a port")}`,
+            name: `${ICONS.SEARCH}  ${chalk.bold("Check Port")}        See what's running on a port`,
             value: "check_port",
           },
           {
-            name: `${ICONS.KILL}  ${chalk.bold(
-              "Kill Port"
-            )}         ${chalk.dim("Stop process on a port")}`,
+            name: `${ICONS.KILL}  ${chalk.bold("Kill Port")}         Stop process on a port`,
             value: "kill_port",
           },
-          new inquirer.Separator(chalk.dim("─── Configuration ────────────")),
+          new inquirer.Separator(chalk.dim("─── Configuration ────────────────")),
           {
-            name: `${ICONS.EXPORT}  ${chalk.bold(
-              "Export Config"
-            )}      ${chalk.dim("Save config to YAML file")}`,
+            name: `${ICONS.EXPORT}  ${chalk.bold("Export Config")}      Save config to YAML file`,
             value: "export_config",
           },
           {
-            name: `${ICONS.IMPORT}  ${chalk.bold(
-              "Import Config"
-            )}      ${chalk.dim("Load config from file")}`,
+            name: `${ICONS.IMPORT}  ${chalk.bold("Import Config")}      Load config from file`,
             value: "import_config",
           },
-          new inquirer.Separator(chalk.dim("─────────────────────────────")),
+          new inquirer.Separator(chalk.dim("─────────────────────────────────")),
           {
-            name: `${ICONS.BACK}  ${chalk.dim("Back to Dashboard")}`,
+            name: `${ICONS.BACK}  Back to Dashboard`,
             value: "back",
           },
         ],

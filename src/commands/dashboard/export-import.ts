@@ -49,10 +49,10 @@ export async function exportConfigMenu(): Promise<void> {
         savedShareables.forEach((shareable) => {
             const itemCount =
                 shareable.server_ids.length +
-                shareable.aws_profile_ids.length +
                 shareable.rds_instance_ids.length;
+            // Note: Using chalk.bold without colors so inquirer selection highlighting works
             choices.push({
-                name: `${ICONS.SHAREABLE}  ${chalk.hex(COLORS.PRIMARY)(shareable.name)} ${chalk.dim(`(v${shareable.version}, ${itemCount} items)`)}`,
+                name: `${ICONS.SHAREABLE}  ${chalk.bold(shareable.name)} (v${shareable.version}, ${itemCount} items)`,
                 value: { type: "shareable", id: shareable.id },
             });
         });
@@ -81,7 +81,7 @@ export async function exportConfigMenu(): Promise<void> {
         new inquirer.Separator(chalk.dim("───────────────────────────────────"))
     );
     choices.push({
-        name: `${ICONS.BACK}  ${chalk.dim("Back to Dashboard")}`,
+        name: `${ICONS.BACK}  Back to Dashboard`,
         value: { type: "back" },
     });
 
@@ -106,7 +106,7 @@ export async function exportConfigMenu(): Promise<void> {
 
             await performExport({
                 server_ids: shareable.server_ids,
-                aws_profile_ids: shareable.aws_profile_ids,
+                aws_profile_ids: [], // AWS profiles not exported
                 rds_instance_ids: shareable.rds_instance_ids,
                 shareable_name: shareable.name,
                 shareable_version: shareable.version,
@@ -144,7 +144,6 @@ async function createNewShareable(): Promise<void> {
 
     if (
         items.servers.length === 0 &&
-        items.aws_profiles.length === 0 &&
         items.rds_instances.length === 0
     ) {
         console.log(chalk.yellow("\n⚠️  No items to export."));
@@ -164,21 +163,6 @@ async function createNewShareable(): Promise<void> {
                 name: `${ICONS.SERVER}  ${server.name} ${chalk.dim(`(${server.host})`)}`,
                 value: { type: "server", id: server.id },
                 checked: false, // NOT pre-selected
-            });
-        });
-    }
-
-    if (items.aws_profiles.length > 0) {
-        choices.push(
-            new inquirer.Separator(
-                chalk.hex(COLORS.PRIMARY).bold("─── AWS Profiles ───")
-            )
-        );
-        items.aws_profiles.forEach((profile) => {
-            choices.push({
-                name: `${ICONS.AWS}  ${profile.name} ${chalk.dim(`(${profile.auth_type})`)}`,
-                value: { type: "aws", id: profile.id },
-                checked: false,
             });
         });
     }
@@ -212,14 +196,12 @@ async function createNewShareable(): Promise<void> {
         return;
     }
 
-    // Build selection object
+    // Build selection object (AWS profiles not exported - teammates set up their own)
     const selection: IExportSelection = {
         server_ids: selectedItems
             .filter((i: any) => i.type === "server")
             .map((i: any) => i.id),
-        aws_profile_ids: selectedItems
-            .filter((i: any) => i.type === "aws")
-            .map((i: any) => i.id),
+        aws_profile_ids: [], // Not exported
         rds_instance_ids: selectedItems
             .filter((i: any) => i.type === "rds")
             .map((i: any) => i.id),
@@ -233,7 +215,6 @@ async function createNewShareable(): Promise<void> {
         name: shareableName,
         version: 1,
         server_ids: selection.server_ids,
-        aws_profile_ids: selection.aws_profile_ids,
         rds_instance_ids: selection.rds_instance_ids,
         created_at: new Date().toISOString(),
     });
@@ -320,21 +301,6 @@ async function editShareable(): Promise<void> {
             });
         }
 
-        if (items.aws_profiles.length > 0) {
-            choices.push(
-                new inquirer.Separator(
-                    chalk.hex(COLORS.PRIMARY).bold("─── AWS Profiles ───")
-                )
-            );
-            items.aws_profiles.forEach((profile) => {
-                choices.push({
-                    name: `${ICONS.AWS}  ${profile.name}`,
-                    value: { type: "aws", id: profile.id },
-                    checked: shareable.aws_profile_ids.includes(profile.id),
-                });
-            });
-        }
-
         if (items.rds_instances.length > 0) {
             choices.push(
                 new inquirer.Separator(
@@ -360,9 +326,6 @@ async function editShareable(): Promise<void> {
 
         shareable.server_ids = selectedItems
             .filter((i: any) => i.type === "server")
-            .map((i: any) => i.id);
-        shareable.aws_profile_ids = selectedItems
-            .filter((i: any) => i.type === "aws")
             .map((i: any) => i.id);
         shareable.rds_instance_ids = selectedItems
             .filter((i: any) => i.type === "rds")
@@ -553,19 +516,104 @@ export async function importConfigMenu(): Promise<void> {
         return;
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // AWS Profile Mapping
+    // Servers and RDS may reference AWS profiles by name - prompt user to map them
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    // Collect all AWS profile references from servers and RDS instances
+    const awsProfileRefs = new Set<string>();
+
+    // From new items
+    diff.new_items.servers.forEach((s) => {
+        if (s.aws_profile) awsProfileRefs.add(s.aws_profile);
+    });
+    diff.new_items.rds_instances.forEach((r) => {
+        if (r.aws_profile) awsProfileRefs.add(r.aws_profile);
+    });
+
+    // From modified items (if overwriting)
+    if (importChoice === "all") {
+        diff.modified_items.servers.forEach((s) => {
+            // s.name exists, check if any changes involve aws_profile
+            const awsChange = s.changes.find((c) => c.field === "aws_profile");
+            if (awsChange && awsChange.to) awsProfileRefs.add(awsChange.to);
+        });
+    }
+
+    // Build profile mapping
+    const profileMapping: Record<string, string> = {};
+
+    if (awsProfileRefs.size > 0) {
+        console.log(chalk.hex(COLORS.PRIMARY).bold("\n☁️  AWS Profile Setup\n"));
+        console.log(chalk.dim("This config references AWS profiles. Map them to your local AWS CLI profiles.\n"));
+
+        const existingProfiles = storageService.getAllAWSProfiles();
+
+        for (const profileRef of awsProfileRefs) {
+            // Build choices: existing profiles + create new option
+            const profileChoices: { name: string; value: string }[] = existingProfiles.map((p) => ({
+                name: `${ICONS.AWS}  ${p.name} (CLI: ${p.cli_profile_name || "N/A"})`,
+                value: p.name,
+            }));
+            profileChoices.push({
+                name: `${ICONS.NEW}  Enter AWS CLI profile name manually`,
+                value: "__manual__",
+            });
+
+            const { mappedProfile } = await inquirer.prompt({
+                type: "list",
+                name: "mappedProfile",
+                message: chalk.hex(COLORS.SECONDARY)(`Map "${chalk.bold(profileRef)}" to:`),
+                choices: profileChoices,
+            });
+
+            if (mappedProfile === "__manual__") {
+                const { cliProfileName } = await inquirer.prompt({
+                    type: "input",
+                    name: "cliProfileName",
+                    message: chalk.hex(COLORS.SECONDARY)("Your AWS CLI profile name (from ~/.aws/credentials):"),
+                    default: profileRef,
+                });
+
+                // Create or update the AWS profile
+                const { nanoid } = await import("nanoid");
+                const existingByRef = existingProfiles.find((p) => p.name === profileRef);
+
+                if (!existingByRef) {
+                    storageService.saveAWSProfile({
+                        id: nanoid(),
+                        name: profileRef,
+                        auth_type: "cli_profile",
+                        cli_profile_name: cliProfileName,
+                        default_region: "us-east-1", // Default
+                        created_at: new Date().toISOString(),
+                    });
+                    console.log(chalk.green(`  ✓ Created AWS profile "${profileRef}" → CLI: ${cliProfileName}`));
+                }
+
+                profileMapping[profileRef] = profileRef;
+            } else {
+                profileMapping[profileRef] = mappedProfile;
+            }
+        }
+
+        console.log();
+    }
+
     // Perform import
     console.log();
     const spinner = ora("Importing configuration...").start();
 
     const result = await exportService.importConfig(inputPath, {
         overwrite: importChoice === "all",
+        profileMapping, // Pass the mapping
     });
 
     if (result.success) {
         spinner.succeed(chalk.green(`${ICONS.CHECK} Configuration imported!`));
         console.log(chalk.white("\nImported:"));
         console.log(chalk.green(`  ✓ ${result.imported.servers} servers`));
-        console.log(chalk.green(`  ✓ ${result.imported.aws_profiles} AWS profiles`));
         console.log(chalk.green(`  ✓ ${result.imported.rds_instances} RDS instances`));
     } else {
         spinner.fail(chalk.red("Import completed with errors"));

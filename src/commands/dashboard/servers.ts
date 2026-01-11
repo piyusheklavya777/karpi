@@ -401,19 +401,18 @@ function buildMainMenuChoices(
       ).length;
 
       // Build server display line with better spacing
-      let displayName = `${ICONS.SERVER}  ${chalk.bold.hex(COLORS.PRIMARY)(
-        server.name
-      )}`;
+      // Note: Using chalk.bold without colors so inquirer selection highlighting works
+      let displayName = `${ICONS.SERVER}  ${chalk.bold(server.name)}`;
 
       // Show linked AWS profile if exists
       if (server.aws_profile_id) {
         const awsProfile = storageService.getAWSProfile(server.aws_profile_id);
         if (awsProfile) {
-          displayName += chalk.cyan(` [${ICONS.AWS}${awsProfile.name}]`);
+          displayName += ` [${ICONS.AWS}${awsProfile.name}]`;
         }
       }
 
-      displayName += chalk.dim(` (${server.username}@${server.host})`);
+      displayName += ` (${server.username}@${server.host})`;
 
       // Show tunnel status indicators with spacing
       if (tunnels.length > 0) {
@@ -427,7 +426,7 @@ function buildMainMenuChoices(
       }
 
       if (activeCount > 0) {
-        displayName += chalk.green(` ${activeCount} active`);
+        displayName += ` ${activeCount} active`;
       }
 
       choices.push({
@@ -441,12 +440,12 @@ function buildMainMenuChoices(
   choices.push(
     new inquirer.Separator(chalk.dim("─── Actions ───────────────────────")),
     {
-      name: `${ICONS.ADD}  ${chalk.hex(COLORS.SECONDARY)("Add New Server")}`,
+      name: `${ICONS.ADD}  Add New Server`,
       value: "add_server",
     },
     new inquirer.Separator(chalk.dim("───────────────────────────────────")),
     {
-      name: `${ICONS.BACK}  ${chalk.dim("Back to Dashboard")}`,
+      name: `${ICONS.BACK}  Back to Dashboard`,
       value: "back",
     }
   );
@@ -464,7 +463,7 @@ function buildServerActionsChoices(
 
   // Primary action
   choices.push({
-    name: `${ICONS.SSH}  ${chalk.bold.hex(COLORS.PRIMARY)("SSH Connect")}`,
+    name: `${ICONS.SSH}  ${chalk.bold("SSH Connect")}`,
     value: "ssh",
   });
 
@@ -477,12 +476,10 @@ function buildServerActionsChoices(
     tunnels.forEach((tunnel) => {
       const proc = processes.find((p) => p.tunnelId === tunnel.id);
       const status = proc ? ICONS.TUNNEL_ACTIVE : ICONS.TUNNEL_INACTIVE;
-      const statusText = proc ? chalk.green("running") : chalk.dim("stopped");
+      const statusText = proc ? "running" : "stopped";
 
       choices.push({
-        name: `${status}  ${chalk.hex(COLORS.SECONDARY)(
-          tunnel.name
-        )} ${chalk.dim(`(${tunnel.type})`)} ${statusText}`,
+        name: `${status}  ${chalk.bold(tunnel.name)} (${tunnel.type}) ${statusText}`,
         value: `tunnel:${tunnel.id}`,
       });
     });
@@ -492,11 +489,11 @@ function buildServerActionsChoices(
   choices.push(
     new inquirer.Separator(chalk.dim("─── Actions ───────────────────────")),
     {
-      name: `${ICONS.ADD}  ${chalk.hex(COLORS.SECONDARY)("Add Tunnel")}`,
+      name: `${ICONS.ADD}  Add Tunnel`,
       value: "add_tunnel",
     },
     {
-      name: `${ICONS.EDIT}  ${chalk.hex(COLORS.SECONDARY)("Edit Server")}`,
+      name: `${ICONS.EDIT}  Edit Server`,
       value: "edit_server",
     }
   );
@@ -510,23 +507,21 @@ function buildServerActionsChoices(
   if (syncedFiles.length > 0) {
     syncedFiles.forEach((sf) => {
       const lastSync = sf.last_synced
-        ? chalk.dim(
-          `synced ${format(new Date(sf.last_synced), "MMM d, HH:mm")}`
-        )
-        : chalk.dim("never synced");
+        ? `synced ${format(new Date(sf.last_synced), "MMM d, HH:mm")}`
+        : "never synced";
       const icon = sf.name.toLowerCase().includes("env")
         ? ICONS.ENV
         : ICONS.FILE;
 
       choices.push({
-        name: `${icon}  ${chalk.hex(COLORS.SECONDARY)(sf.name)} ${lastSync}`,
+        name: `${icon}  ${chalk.bold(sf.name)} ${lastSync}`,
         value: `syncedfile:${sf.id}`,
       });
     });
   }
 
   choices.push({
-    name: `${ICONS.ADD}  ${chalk.hex(COLORS.PRIMARY)("Add Synced File")}`,
+    name: `${ICONS.ADD}  Add Synced File`,
     value: "add_synced_file",
   });
 
@@ -535,14 +530,12 @@ function buildServerActionsChoices(
   if (server.aws_profile_id) {
     const linkedProfile = storageService.getAWSProfile(server.aws_profile_id);
     choices.push({
-      name: `${ICONS.LINK}  ${chalk.cyan(`Unlink AWS Profile`)} ${chalk.dim(
-        `(${linkedProfile?.name || "unknown"})`
-      )}`,
+      name: `${ICONS.LINK}  Unlink AWS Profile (${linkedProfile?.name || "unknown"})`,
       value: "unlink_aws",
     });
   } else if (awsProfiles.length > 0) {
     choices.push({
-      name: `${ICONS.AWS}  ${chalk.cyan("Link AWS Profile")}`,
+      name: `${ICONS.AWS}  Link AWS Profile`,
       value: "link_aws",
     });
   }
@@ -551,12 +544,12 @@ function buildServerActionsChoices(
   choices.push(
     new inquirer.Separator(chalk.dim("─── Danger Zone ───────────────────")),
     {
-      name: `${ICONS.DELETE}  ${chalk.red("Delete Server")}`,
+      name: `${ICONS.DELETE}  Delete Server`,
       value: "delete_server",
     },
     new inquirer.Separator(chalk.dim("───────────────────────────────────")),
     {
-      name: `${ICONS.BACK}  ${chalk.dim("Back to Server List")}`,
+      name: `${ICONS.BACK}  Back to Server List`,
       value: "back",
     }
   );

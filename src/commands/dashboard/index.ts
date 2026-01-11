@@ -95,40 +95,36 @@ export async function dashboardCommand(): Promise<void> {
     choices.push({
       name: `  ${MENU_ICONS.SERVERS} ${chalk.bold(
         "Servers & Tunnels"
-      )}      ${chalk.dim("Manage SSH connections")}`,
+      )}      Manage SSH connections`,
       value: { type: "standard", data: "servers" },
     });
     choices.push({
       name: `  ${MENU_ICONS.RDS} ${chalk.bold(
         "RDS Databases"
-      )}          ${chalk.dim("Manage database tunnels")}`,
+      )}          Manage database tunnels`,
       value: { type: "standard", data: "rds" },
     });
     choices.push({
       name: `  ${MENU_ICONS.AWS} ${chalk.bold(
         "AWS Profiles"
-      )}           ${chalk.dim("Manage AWS credentials")}`,
+      )}           Manage AWS credentials`,
       value: { type: "standard", data: "aws" },
     });
     choices.push({
       name: `  ${MENU_ICONS.UTILITIES} ${chalk.bold(
         "Utilities"
-      )}              ${chalk.dim("Port tools & more")}`,
+      )}              Port tools & more`,
       value: { type: "standard", data: "utilities" },
     });
     choices.push(
       new inquirer.Separator(chalk.dim("  "))
     );
     choices.push({
-      name: `  📦  ${chalk.bold(
-        "Export Config"
-      )}         ${chalk.dim("Save config to YAML")}`,
+      name: `  📦  ${chalk.bold("Export Config")}         Save config to YAML`,
       value: { type: "standard", data: "export" },
     });
     choices.push({
-      name: `  📥  ${chalk.bold(
-        "Import Config"
-      )}         ${chalk.dim("Load config from file")}`,
+      name: `  📥  ${chalk.bold("Import Config")}         Load config from file`,
       value: { type: "standard", data: "import" },
     });
 
@@ -151,13 +147,10 @@ export async function dashboardCommand(): Promise<void> {
         const actionName = action.name
           .replace("SSH ", "")
           .replace("Tunnel ", "");
-        const typeLabel =
-          action.type === "ssh" ? chalk.cyan("SSH") : chalk.magenta("Tunnel");
+        const typeLabel = action.type === "ssh" ? "SSH" : "Tunnel";
 
         choices.push({
-          name: `  ${icon} ${chalk.white(actionName)}  ${chalk.dim(
-            "→"
-          )} ${typeLabel}`,
+          name: `  ${icon} ${actionName}  → ${typeLabel}`,
           value: { type: "recent", data: action },
         });
       });
@@ -165,9 +158,7 @@ export async function dashboardCommand(): Promise<void> {
       // Active processes (with kill option)
       processes.forEach((proc) => {
         choices.push({
-          name: `  ${MENU_ICONS.KILL} ${chalk.red("Stop:")} ${chalk.white(
-            proc.name
-          )} ${chalk.dim(`PID ${proc.pid}`)}`,
+          name: `  ${MENU_ICONS.KILL} Stop: ${proc.name} PID ${proc.pid}`,
           value: { type: "process", data: proc },
         });
       });
@@ -182,7 +173,7 @@ export async function dashboardCommand(): Promise<void> {
     choices.push(new inquirer.Separator(chalk.dim("  ")));
 
     choices.push({
-      name: `  ${MENU_ICONS.PROFILE} ${chalk.white("Profile Settings")}`,
+      name: `  ${MENU_ICONS.PROFILE} Profile Settings`,
       value: { type: "standard", data: "profile" },
     });
 
@@ -192,11 +183,11 @@ export async function dashboardCommand(): Promise<void> {
 
     choices.push(new inquirer.Separator(chalk.dim("  ")));
     choices.push({
-      name: `  ${MENU_ICONS.LOGOUT} ${chalk.dim("Logout")}`,
+      name: `  ${MENU_ICONS.LOGOUT} Logout`,
       value: { type: "standard", data: "logout" },
     });
     choices.push({
-      name: `  ${MENU_ICONS.EXIT} ${chalk.dim("Exit")}`,
+      name: `  ${MENU_ICONS.EXIT} Exit`,
       value: { type: "standard", data: "exit" },
     });
 

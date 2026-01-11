@@ -311,9 +311,9 @@ async function editProfileFlow(profile: IAWSProfile): Promise<void> {
       ...(profile.auth_type === "cli_profile"
         ? [{ name: "AWS CLI Profile Name", value: "cli_profile_name" }]
         : [
-            { name: "Access Key ID", value: "access_key_id" },
-            { name: "Secret Access Key", value: "secret_access_key" },
-          ]),
+          { name: "Access Key ID", value: "access_key_id" },
+          { name: "Secret Access Key", value: "secret_access_key" },
+        ]),
       new inquirer.Separator(),
       { name: `${ICONS.BACK} Cancel`, value: "cancel" },
     ],
@@ -462,9 +462,9 @@ function displayEmptyState(): void {
   console.log(
     boxen(
       chalk.dim("No AWS profiles configured.\n") +
-        chalk.hex(COLORS.SECONDARY)(
-          "Add a profile to fetch EC2 instances from AWS."
-        ),
+      chalk.hex(COLORS.SECONDARY)(
+        "Add a profile to fetch EC2 instances from AWS."
+      ),
       {
         padding: 1,
         borderStyle: "round",
@@ -487,12 +487,12 @@ function displayProfileHeader(profile: IAWSProfile): void {
     chalk.dim("Authentication: ") + chalk.white(authInfo),
     chalk.dim("Region: ") + chalk.white(profile.default_region),
     chalk.dim("Created: ") +
-      chalk.white(new Date(profile.created_at).toLocaleDateString()),
+    chalk.white(new Date(profile.created_at).toLocaleDateString()),
     ...(profile.last_used
       ? [
-          chalk.dim("Last used: ") +
-            chalk.white(new Date(profile.last_used).toLocaleDateString()),
-        ]
+        chalk.dim("Last used: ") +
+        chalk.white(new Date(profile.last_used).toLocaleDateString()),
+      ]
       : []),
   ].join("\n");
 
@@ -525,10 +525,9 @@ function buildMainMenuChoices(
       const authType = profile.auth_type === "cli_profile" ? "CLI" : "Keys";
       const region = profile.default_region;
 
+      // Note: Using chalk.bold without colors so inquirer selection highlighting works
       choices.push({
-        name: `${ICONS.AWS}  ${chalk.bold(profile.name)} ${chalk.dim(
-          `(${authType}: ${region})`
-        )}`,
+        name: `${ICONS.AWS}  ${chalk.bold(profile.name)} (${authType}: ${region})`,
         value: `profile:${profile.id}`,
       });
     });
@@ -538,7 +537,7 @@ function buildMainMenuChoices(
     new inquirer.Separator(chalk.dim("─── Actions ───────────────────────"))
   );
   choices.push({
-    name: `${ICONS.PLUS}  ${chalk.hex(COLORS.PRIMARY)("Add AWS Profile")}`,
+    name: `${ICONS.PLUS}  Add AWS Profile`,
     value: "add_profile",
   });
 
@@ -546,7 +545,7 @@ function buildMainMenuChoices(
     new inquirer.Separator(chalk.dim("───────────────────────────────────"))
   );
   choices.push({
-    name: `${ICONS.BACK}  ${chalk.dim("Back to Dashboard")}`,
+    name: `${ICONS.BACK}  Back to Dashboard`,
     value: "back",
   });
 
@@ -560,14 +559,12 @@ function buildProfileActionsChoices(
     [];
 
   choices.push({
-    name: `${ICONS.TEST}  ${chalk.hex(COLORS.PRIMARY)(
-      "Test Credentials"
-    )}`,
+    name: `${ICONS.TEST}  Test Credentials`,
     value: "test",
   });
 
   choices.push({
-    name: `${ICONS.EDIT}  ${chalk.hex(COLORS.SECONDARY)("Edit Profile")}`,
+    name: `${ICONS.EDIT}  Edit Profile`,
     value: "edit",
   });
 
@@ -575,7 +572,7 @@ function buildProfileActionsChoices(
     new inquirer.Separator(chalk.dim("─── Danger Zone ───────────────────"))
   );
   choices.push({
-    name: `${ICONS.TRASH}  ${chalk.red("Delete Profile")}`,
+    name: `${ICONS.TRASH}  Delete Profile`,
     value: "delete",
   });
 
@@ -583,7 +580,7 @@ function buildProfileActionsChoices(
     new inquirer.Separator(chalk.dim("───────────────────────────────────"))
   );
   choices.push({
-    name: `${ICONS.BACK}  ${chalk.dim("Back")}`,
+    name: `${ICONS.BACK}  Back`,
     value: "back",
   });
 

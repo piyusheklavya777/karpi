@@ -184,9 +184,9 @@ function displayEmptyState(): void {
   console.log(
     boxen(
       chalk.dim("No RDS databases configured.\n\n") +
-        chalk.hex(COLORS.SECONDARY)(
-          "Add a database to manage connections and tunnels."
-        ),
+      chalk.hex(COLORS.SECONDARY)(
+        "Add a database to manage connections and tunnels."
+      ),
       {
         padding: 1,
         borderStyle: "round",
@@ -203,8 +203,8 @@ function displayRDSHeader(rds: IRDSInstance): void {
 
   const header = boxen(
     chalk.hex(COLORS.PRIMARY).bold(`${engineIcon} ${rds.name}`) +
-      "\n" +
-      chalk.dim(`${engineName} ${rds.engine_version}`),
+    "\n" +
+    chalk.dim(`${engineName} ${rds.engine_version}`),
     {
       padding: { left: 2, right: 2, top: 0, bottom: 0 },
       borderStyle: "round",
@@ -248,12 +248,12 @@ function displayRDSDetails(
   if (linkedServer) {
     lines.push(
       chalk.dim("Linked Server: ") +
-        chalk.cyan(`${ICONS.SERVER} ${linkedServer.name}`)
+      chalk.cyan(`${ICONS.SERVER} ${linkedServer.name}`)
     );
     if (tunnelProcess) {
       lines.push(
         chalk.dim("Tunnel: ") +
-          chalk.green(`${ICONS.ACTIVE} Active (localhost:${rds.local_port})`)
+        chalk.green(`${ICONS.ACTIVE} Active (localhost:${rds.local_port})`)
       );
     } else {
       lines.push(
@@ -309,13 +309,12 @@ function buildMainMenuChoices(
         rds.linked_tunnel_id &&
         processes.some((p) => p.tunnelId === rds.linked_tunnel_id);
 
-      let displayName = `${engineIcon}  ${chalk.bold.hex(COLORS.PRIMARY)(
-        rds.name
-      )}`;
+      // Note: Using chalk.bold without colors so inquirer selection highlighting works
+      let displayName = `${engineIcon}  ${chalk.bold(rds.name)}`;
 
       // Show linked server
       if (linkedServer) {
-        displayName += chalk.dim(` → ${linkedServer.name}`);
+        displayName += ` → ${linkedServer.name}`;
       }
 
       // Show tunnel status
@@ -326,7 +325,7 @@ function buildMainMenuChoices(
       }
 
       // Show engine type
-      displayName += chalk.dim(` (${rds.engine})`);
+      displayName += ` (${rds.engine})`;
 
       choices.push({
         name: displayName,
@@ -339,14 +338,12 @@ function buildMainMenuChoices(
   choices.push(
     new inquirer.Separator(chalk.dim("─── Actions ───────────────────────")),
     {
-      name: `${ICONS.ADD}  ${chalk.hex(COLORS.SECONDARY)(
-        "Add RDS Database"
-      )}`,
+      name: `${ICONS.ADD}  Add RDS Database`,
       value: "add_rds",
     },
     new inquirer.Separator(chalk.dim("───────────────────────────────────")),
     {
-      name: `${ICONS.BACK}  ${chalk.dim("Back to Dashboard")}`,
+      name: `${ICONS.BACK}  Back to Dashboard`,
       value: "back",
     }
   );
@@ -387,9 +384,7 @@ function buildRDSActionsChoices(
 
   // Copy connection string
   choices.push({
-    name: `${ICONS.COPY}  ${chalk.hex(COLORS.SECONDARY)(
-      "Copy Connection String"
-    )}`,
+    name: `${ICONS.COPY}  Copy Connection String`,
     value: "copy_connection",
   });
 
@@ -400,14 +395,12 @@ function buildRDSActionsChoices(
 
   if (linkedServer) {
     choices.push({
-      name: `${ICONS.UNLINK}  ${chalk.yellow(
-        `Unlink from ${linkedServer.name}`
-      )}`,
+      name: `${ICONS.UNLINK}  Unlink from ${linkedServer.name}`,
       value: "unlink_server",
     });
   } else {
     choices.push({
-      name: `${ICONS.LINK}  ${chalk.cyan("Link to Server (for tunneling)")}`,
+      name: `${ICONS.LINK}  Link to Server (for tunneling)`,
       value: "link_server",
     });
   }
@@ -416,7 +409,7 @@ function buildRDSActionsChoices(
   choices.push(
     new inquirer.Separator(chalk.dim("─── Settings ──────────────────────")),
     {
-      name: `✏️  ${chalk.cyan("Edit Database")}`,
+      name: `✏️  Edit Database`,
       value: "edit",
     }
   );
@@ -425,12 +418,12 @@ function buildRDSActionsChoices(
   choices.push(
     new inquirer.Separator(chalk.dim("─── Danger Zone ───────────────────")),
     {
-      name: `${ICONS.DELETE}  ${chalk.red("Delete Database")}`,
+      name: `${ICONS.DELETE}  Delete Database`,
       value: "delete",
     },
     new inquirer.Separator(chalk.dim("───────────────────────────────────")),
     {
-      name: `${ICONS.BACK}  ${chalk.dim("Back")}`,
+      name: `${ICONS.BACK}  Back`,
       value: "back",
     }
   );
@@ -614,15 +607,15 @@ async function fetchRDSFromAWS(): Promise<void> {
           .bold(`${engineIcon} ${instance.db_instance_identifier}`),
         "",
         chalk.dim("Engine: ") +
-          chalk.white(`${engineName} ${instance.engine_version}`),
+        chalk.white(`${engineName} ${instance.engine_version}`),
         chalk.dim("Endpoint: ") + chalk.white(instance.endpoint || "N/A"),
         chalk.dim("Port: ") + chalk.white(instance.port.toString()),
         chalk.dim("Database: ") + chalk.white(instance.db_name || "N/A"),
         chalk.dim("Username: ") +
-          chalk.white(instance.master_username || "N/A"),
+        chalk.white(instance.master_username || "N/A"),
         chalk.dim("Class: ") + chalk.white(instance.db_instance_class),
         chalk.dim("Storage: ") +
-          chalk.white(`${instance.allocated_storage} GB`),
+        chalk.white(`${instance.allocated_storage} GB`),
         chalk.dim("Multi-AZ: ") + chalk.white(instance.multi_az ? "Yes" : "No"),
       ].join("\n"),
       {
@@ -1007,7 +1000,7 @@ async function connectToRDS(rds: IRDSInstance): Promise<void> {
         "",
         chalk.dim("Host: ") + chalk.white(host),
         chalk.dim("Port: ") +
-          chalk.white(rds.local_port?.toString() || rds.port.toString()),
+        chalk.white(rds.local_port?.toString() || rds.port.toString()),
         chalk.dim("Database: ") + chalk.white(rds.db_name || "N/A"),
         chalk.dim("Username: ") + chalk.white(rds.master_username || "N/A"),
       ].join("\n"),
@@ -1029,17 +1022,15 @@ async function copyConnectionString(rds: IRDSInstance): Promise<void> {
   let connectionString = "";
 
   if (rds.engine.includes("postgres") || rds.engine === "aurora-postgresql") {
-    connectionString = `postgresql://${
-      rds.master_username || "user"
-    }@${host}:${port}/${rds.db_name || "database"}`;
+    connectionString = `postgresql://${rds.master_username || "user"
+      }@${host}:${port}/${rds.db_name || "database"}`;
   } else if (
     rds.engine.includes("mysql") ||
     rds.engine === "aurora-mysql" ||
     rds.engine === "mariadb"
   ) {
-    connectionString = `mysql://${
-      rds.master_username || "user"
-    }@${host}:${port}/${rds.db_name || "database"}`;
+    connectionString = `mysql://${rds.master_username || "user"
+      }@${host}:${port}/${rds.db_name || "database"}`;
   } else {
     connectionString = `${host}:${port}`;
   }
