@@ -1,5 +1,8 @@
 // src/types/index.ts
 
+// Re-export project types
+export * from "./projects";
+
 export interface IUserProfile {
   id: string;
   username: string;
@@ -22,9 +25,13 @@ export interface IRecentAction {
 
 export interface IBackgroundProcess {
   pid: number;
-  type: "tunnel";
+  type: "tunnel" | "command";
   serverId: string;
   tunnelId: string;
+  // For command processes:
+  projectId?: string;
+  appId?: string;
+  commandId?: string;
   name: string;
   startTime: string;
 }
@@ -67,6 +74,7 @@ export interface IStorageConfig {
   aws_profiles: IAWSProfile[]; // AWS credential profiles
   rds_instances: IRDSInstance[]; // RDS database instances
   shareables: IShareable[]; // Saved export selection presets
+  projects: IProject[]; // Code projects
 }
 
 /**

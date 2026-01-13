@@ -14,6 +14,7 @@ import { awsProfilesMenu } from "./aws-profiles";
 import { rdsMenu } from "./rds";
 import { utilitiesMenu } from "./utilities";
 import { exportConfigMenu, importConfigMenu } from "./export-import";
+import { projectsMenu } from "./projects";
 import { serverService } from "../../services/server.service";
 import type {
   IRecentAction,
@@ -38,6 +39,7 @@ const LOGO = `
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const MENU_ICONS = {
+  PROJECTS: "📁",
   SERVERS: "🖥️ ",
   AWS: "☁️ ",
   RDS: "🗄️ ",
@@ -91,6 +93,13 @@ export async function dashboardCommand(): Promise<void> {
       new inquirer.Separator(chalk.hex(COLORS.SECONDARY).bold("  ▸ MAIN MENU"))
     );
     choices.push(new inquirer.Separator(chalk.dim("  ")));
+
+    choices.push({
+      name: `  ${MENU_ICONS.PROJECTS}  ${chalk.bold(
+        "Projects"
+      )}              Manage code projects`,
+      value: { type: "standard", data: "projects" },
+    });
 
     choices.push({
       name: `  ${MENU_ICONS.SERVERS} ${chalk.bold(
@@ -225,6 +234,9 @@ export async function dashboardCommand(): Promise<void> {
       }
     } else if (selection.type === "standard") {
       switch (selection.data) {
+        case "projects":
+          await projectsMenu();
+          break;
         case "servers":
           await serversMenu();
           break;

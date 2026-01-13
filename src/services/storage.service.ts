@@ -12,6 +12,7 @@ import type {
   IAWSProfile,
   IRDSInstance,
   IShareable,
+  IProject,
 } from "../types";
 import {
   APP_VERSION,
@@ -40,6 +41,7 @@ export class StorageService {
         aws_profiles: [],
         rds_instances: [],
         shareables: [],
+        projects: [],
         preferences: {
           theme: "dark",
           auto_logout_minutes: 30,
@@ -396,6 +398,48 @@ export class StorageService {
 
     this.config.set("shareables", filtered);
     logger.debug(`Shareable deleted: ${id}`);
+    return true;
+  }
+
+  // Project management
+  getAllProjects(): IProject[] {
+    return this.config.get("projects", []);
+  }
+
+  getProjectsByProfileId(profileId: string): IProject[] {
+    const projects = this.getAllProjects();
+    return projects.filter((p) => p.profile_id === profileId);
+  }
+
+  getProject(id: string): IProject | undefined {
+    const projects = this.getAllProjects();
+    return projects.find((p) => p.id === id);
+  }
+
+  saveProject(project: IProject): void {
+    const projects = this.getAllProjects();
+    const existingIndex = projects.findIndex((p) => p.id === project.id);
+
+    if (existingIndex >= 0) {
+      projects[existingIndex] = project;
+    } else {
+      projects.push(project);
+    }
+
+    this.config.set("projects", projects);
+    logger.debug(`Project saved: ${project.name}`);
+  }
+
+  deleteProject(id: string): boolean {
+    const projects = this.getAllProjects();
+    const filtered = projects.filter((p) => p.id !== id);
+
+    if (filtered.length === projects.length) {
+      return false;
+    }
+
+    this.config.set("projects", filtered);
+    logger.debug(`Project deleted: ${id}`);
     return true;
   }
 

@@ -19,6 +19,7 @@ import type {
   ISyncedFile,
 } from "../types";
 import { exec } from "child_process";
+import { processService } from "./process.service";
 
 const KEYS_DIR = "keys";
 
@@ -404,40 +405,13 @@ export class ServerService {
   }
 
   listProcesses(): IBackgroundProcess[] {
-    const processes = storageService.getAllProcesses();
-    // Filter out dead processes
-    const activeProcesses = processes.filter((p) => {
-      try {
-        process.kill(p.pid, 0); // Check if process exists
-        return true;
-      } catch (e) {
-        return false;
-      }
-    });
-
-    // Update storage if some were removed
-    if (activeProcesses.length !== processes.length) {
-      // We can't easily bulk replace, but we can clear and re-add or just accept it updates on next modify
-      // For now, let's just return active ones.
-      // Ideally we should clean up dead ones from storage.
-      // But StorageService doesn't expose bulk set.
-    }
-
-    return activeProcesses;
+    // Use processService for consistent process management
+    return processService.getProcessesByType("tunnel");
   }
 
   async killProcess(pid: number): Promise<boolean> {
-    try {
-      process.kill(pid);
-      storageService.deleteProcess(pid);
-      logger.success(`Process ${pid} killed`);
-      return true;
-    } catch (error) {
-      // If process doesn't exist, remove it anyway
-      storageService.deleteProcess(pid);
-      logger.warn(`Process ${pid} not found (removed from registry)`);
-      return false;
-    }
+    // Use processService for consistent process management
+    return processService.killProcess(pid);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════════
