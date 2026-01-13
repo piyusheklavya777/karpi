@@ -76,6 +76,7 @@ export interface IStorageConfig {
   rds_instances: IRDSInstance[]; // RDS database instances
   shareables: IShareable[]; // Saved export selection presets
   projects: IProject[]; // Code projects
+  recent_commands: IRecentCommand[]; // Recently run project commands
 }
 
 /**

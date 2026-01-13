@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { projectService } from "../../services/project.service";
 import { processService } from "../../services/process.service";
 import { serverService } from "../../services/server.service";
+import { storageService } from "../../services/storage.service";
 import { UI, COLORS } from "../../config/constants";
 import type {
     IProject,
@@ -220,10 +221,16 @@ async function appCommandActionsMenu(
     const choices: Array<{ name: string; value: string } | inquirer.Separator> = [];
 
     if (isRunning) {
-        choices.push({
-            name: `${ICONS.STOP}  ${chalk.red("Stop Command")}`,
-            value: "stop",
-        });
+        choices.push(
+            {
+                name: `${ICONS.STOP}  ${chalk.red("Stop Command")}`,
+                value: "stop",
+            },
+            {
+                name: `${ICONS.PLAY}  ${chalk.yellow("Restart Command")}`,
+                value: "restart",
+            }
+        );
     } else {
         choices.push({
             name: `${ICONS.PLAY}  ${chalk.green("Run Command")}`,
@@ -249,6 +256,10 @@ async function appCommandActionsMenu(
 
     switch (action) {
         case "run":
+            await runAppCommand(projectId, appId, commandId);
+            break;
+        case "restart":
+            if (proc) await stopCommand(proc.pid);
             await runAppCommand(projectId, appId, commandId);
             break;
         case "stop":
@@ -277,10 +288,16 @@ async function projectCommandActionsMenu(
     const choices: Array<{ name: string; value: string } | inquirer.Separator> = [];
 
     if (isRunning) {
-        choices.push({
-            name: `${ICONS.STOP}  ${chalk.red("Stop Command")}`,
-            value: "stop",
-        });
+        choices.push(
+            {
+                name: `${ICONS.STOP}  ${chalk.red("Stop Command")}`,
+                value: "stop",
+            },
+            {
+                name: `${ICONS.PLAY}  ${chalk.yellow("Restart Command")}`,
+                value: "restart",
+            }
+        );
     } else {
         choices.push({
             name: `${ICONS.PLAY}  ${chalk.green("Run Command")}`,
@@ -306,6 +323,10 @@ async function projectCommandActionsMenu(
 
     switch (action) {
         case "run":
+            await runProjectCommand(projectId, commandId);
+            break;
+        case "restart":
+            if (proc) await stopCommand(proc.pid);
             await runProjectCommand(projectId, commandId);
             break;
         case "stop":
@@ -1368,9 +1389,26 @@ async function runAppCommand(
     appId: string,
     commandId: string
 ): Promise<void> {
+    const project = projectService.getProject(projectId);
+    const app = project?.apps.find((a) => a.id === appId);
+    const command = app?.commands.find((c) => c.id === commandId);
+
     const pid = await projectService.runAppCommand(projectId, appId, commandId);
     if (pid) {
         console.log(chalk.green(`\n${UI.ICONS.SUCCESS} Command started (PID: ${pid})`));
+
+        // Track recent command
+        if (project && app && command) {
+            storageService.saveRecentCommand({
+                projectId: project.id,
+                projectName: project.name,
+                appId: app.id,
+                appName: app.name,
+                commandId: command.id,
+                commandName: command.name,
+                runAt: new Date().toISOString(),
+            });
+        }
     } else {
         console.log(chalk.red(`\n${UI.ICONS.ERROR} Failed to start command`));
     }
@@ -1381,9 +1419,23 @@ async function runProjectCommand(
     projectId: string,
     commandId: string
 ): Promise<void> {
+    const project = projectService.getProject(projectId);
+    const command = project?.commands.find((c) => c.id === commandId);
+
     const pid = await projectService.runProjectCommand(projectId, commandId);
     if (pid) {
         console.log(chalk.green(`\n${UI.ICONS.SUCCESS} Command started (PID: ${pid})`));
+
+        // Track recent command
+        if (project && command) {
+            storageService.saveRecentCommand({
+                projectId: project.id,
+                projectName: project.name,
+                commandId: command.id,
+                commandName: command.name,
+                runAt: new Date().toISOString(),
+            });
+        }
     } else {
         console.log(chalk.red(`\n${UI.ICONS.ERROR} Failed to start command`));
     }

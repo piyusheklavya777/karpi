@@ -13,6 +13,7 @@ import type {
   IRDSInstance,
   IShareable,
   IProject,
+  IRecentCommand,
 } from "../types";
 import {
   APP_VERSION,
@@ -42,6 +43,7 @@ export class StorageService {
         rds_instances: [],
         shareables: [],
         projects: [],
+        recent_commands: [],
         preferences: {
           theme: "dark",
           auto_logout_minutes: 30,
@@ -452,6 +454,29 @@ export class StorageService {
     const current = this.getPreferences();
     this.config.set("preferences", { ...current, ...preferences });
     logger.debug("Preferences updated");
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // Recent Commands
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  getRecentCommands(): IRecentCommand[] {
+    return this.config.get("recent_commands", []);
+  }
+
+  saveRecentCommand(command: IRecentCommand): void {
+    const existing = this.getRecentCommands();
+    // Remove if already exists (by commandId)
+    const filtered = existing.filter((c) => c.commandId !== command.commandId);
+    // Add to front and keep max 5
+    const updated = [command, ...filtered].slice(0, 5);
+    this.config.set("recent_commands", updated);
+    logger.debug(`Recent command saved: ${command.commandName}`);
+  }
+
+  clearRecentCommands(): void {
+    this.config.set("recent_commands", []);
+    logger.debug("Recent commands cleared");
   }
 
   // Utility

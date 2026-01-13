@@ -20,7 +20,9 @@ import type {
   IRecentAction,
   IBackgroundProcess,
   IUserProfile,
+  IRecentCommand,
 } from "../../types";
+import { projectService } from "../../services/project.service";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ASCII Art Logo
@@ -141,7 +143,7 @@ export async function dashboardCommand(): Promise<void> {
     // QUICK ACTIONS SECTION (if any)
     // ═══════════════════════════════════════════════════════════
 
-    if (recentActions.length > 0 || processes.length > 0) {
+    if (recentActions.length > 0 || processes.length > 0 || storageService.getRecentCommands().length > 0) {
       choices.push(new inquirer.Separator(chalk.dim("  ")));
       choices.push(
         new inquirer.Separator(
@@ -149,6 +151,18 @@ export async function dashboardCommand(): Promise<void> {
         )
       );
       choices.push(new inquirer.Separator(chalk.dim("  ")));
+
+      // Recent project commands
+      const recentCommands = storageService.getRecentCommands().slice(0, 3);
+      recentCommands.forEach((cmd) => {
+        const displayName = cmd.appName
+          ? `${cmd.projectName} > ${cmd.appName} > ${cmd.commandName}`
+          : `${cmd.projectName} > ${cmd.commandName}`;
+        choices.push({
+          name: `  ▶️  ${chalk.hex(COLORS.PRIMARY)(displayName)}`,
+          value: { type: "recentCommand", data: cmd },
+        });
+      });
 
       // Recent actions
       recentActions.slice(0, 4).forEach((action) => {
@@ -216,6 +230,26 @@ export async function dashboardCommand(): Promise<void> {
         await serverService.connectToServer(action.serverId);
       } else if (action.type === "tunnel" && action.tunnelId) {
         await serverService.startTunnel(action.serverId, action.tunnelId);
+      }
+      await waitForEnter();
+    } else if (selection.type === "recentCommand") {
+      const cmd = selection.data as IRecentCommand;
+      // Run the recent command
+      let pid: number | null = null;
+      if (cmd.appId) {
+        pid = await projectService.runAppCommand(cmd.projectId, cmd.appId, cmd.commandId);
+      } else {
+        pid = await projectService.runProjectCommand(cmd.projectId, cmd.commandId);
+      }
+      if (pid) {
+        console.log(chalk.green(`\n${UI.ICONS.SUCCESS} Command started (PID: ${pid})`));
+        // Update recent command timestamp
+        storageService.saveRecentCommand({
+          ...cmd,
+          runAt: new Date().toISOString(),
+        });
+      } else {
+        console.log(chalk.red(`\n${UI.ICONS.ERROR} Failed to start command`));
       }
       await waitForEnter();
     } else if (selection.type === "process") {

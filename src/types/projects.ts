@@ -89,3 +89,16 @@ export interface IDetectedApp {
     scripts: string[];
     packageJsonPath: string;
 }
+
+/**
+ * Recent command - tracks last run commands for quick actions
+ */
+export interface IRecentCommand {
+    projectId: string;
+    projectName: string;
+    appId?: string;
+    appName?: string;
+    commandId: string;
+    commandName: string;
+    runAt: string; // ISO timestamp
+}
