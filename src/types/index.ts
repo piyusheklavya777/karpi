@@ -34,6 +34,7 @@ export interface IBackgroundProcess {
   commandId?: string;
   name: string;
   startTime: string;
+  lastPolledAt?: string; // ISO timestamp of last poll check
 }
 
 export interface IUserPreferences {

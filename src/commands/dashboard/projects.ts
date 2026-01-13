@@ -527,12 +527,22 @@ function buildProjectActionsChoices(
         );
 
         project.commands.forEach((cmd) => {
-            const isRunning = projectService.isCommandRunning(cmd.id);
+            const proc = processService.getCommandProcess(cmd.id);
+            const isRunning = !!proc;
             const statusIcon = isRunning ? ICONS.RUNNING : ICONS.STOPPED;
             const typeIcon = cmd.type === "sequence" ? ICONS.SEQUENCE : ICONS.COMMAND;
 
             let displayName = `${typeIcon}  ${chalk.bold(cmd.name)}`;
-            displayName += `  ${statusIcon}`;
+
+            if (isRunning && proc) {
+                displayName += `  ${chalk.green.bold("(running)")}`;
+                if (proc.lastPolledAt) {
+                    const polledAgo = Math.round((Date.now() - new Date(proc.lastPolledAt).getTime()) / 1000);
+                    displayName += chalk.dim(` polled ${polledAgo}s ago`);
+                }
+            } else {
+                displayName += `  ${statusIcon}`;
+            }
 
             choices.push({
                 name: displayName,
@@ -576,7 +586,8 @@ function buildAppActionsChoices(
         );
 
         app.commands.forEach((cmd) => {
-            const isRunning = projectService.isCommandRunning(cmd.id);
+            const proc = processService.getCommandProcess(cmd.id);
+            const isRunning = !!proc;
             const statusIcon = isRunning ? ICONS.RUNNING : ICONS.STOPPED;
             const typeIcon = cmd.type === "sequence" ? ICONS.SEQUENCE : ICONS.COMMAND;
 
@@ -584,7 +595,17 @@ function buildAppActionsChoices(
             if (cmd.command) {
                 displayName += chalk.dim(` (${cmd.command})`);
             }
-            displayName += `  ${statusIcon}`;
+
+            if (isRunning && proc) {
+                displayName += `  ${chalk.green.bold("(running)")}`;
+                // Show polled time if available
+                if (proc.lastPolledAt) {
+                    const polledAgo = Math.round((Date.now() - new Date(proc.lastPolledAt).getTime()) / 1000);
+                    displayName += chalk.dim(` polled ${polledAgo}s ago`);
+                }
+            } else {
+                displayName += `  ${statusIcon}`;
+            }
 
             choices.push({
                 name: displayName,
@@ -691,7 +712,7 @@ async function scanAndAddApps(projectId: string, basePath: string): Promise<void
     const choices = detected.map((app) => ({
         name: `${getAppTypeIcon(app.type)} ${app.name} (${app.relativePath}) - ${app.type}`,
         value: app,
-        checked: true,
+        checked: false,
     }));
 
     const { selectedApps } = await inquirer.prompt([
@@ -704,22 +725,15 @@ async function scanAndAddApps(projectId: string, basePath: string): Promise<void
     ]);
 
     for (const app of selectedApps as IDetectedApp[]) {
-        projectService.addApp(projectId, {
+        const addedApp = projectService.addApp(projectId, {
             name: app.name,
             type: app.type,
             relative_path: app.relativePath,
         });
 
-        // Auto-add common commands from package.json scripts
-        const commonScripts = ["dev", "start", "build", "test"];
-        for (const script of commonScripts) {
-            if (app.scripts.includes(script)) {
-                projectService.addAppCommand(projectId, "", {
-                    name: script,
-                    type: "direct",
-                    command: `npm run ${script}`,
-                });
-            }
+        // Prompt user to add commands from detected scripts
+        if (addedApp && app.scripts.length > 0) {
+            await promptToAddCommands(projectId, addedApp.id, app.scripts);
         }
     }
 
@@ -798,7 +812,7 @@ async function addAppFlow(projectId: string): Promise<void> {
 
         if (app) {
             console.log(chalk.green(`\n${UI.ICONS.SUCCESS} App "${app.name}" added!`));
-            await autoAddCommands(projectId, app.id, selectedApp);
+            await promptToAddCommands(projectId, app.id, selectedApp.scripts);
         }
     } else if (method === "manual") {
         const answers = await inquirer.prompt([
@@ -907,38 +921,80 @@ async function addTunnelAppFlow(projectId: string): Promise<void> {
     console.log(chalk.green(`\n${UI.ICONS.SUCCESS} Tunnel app added!`));
 }
 
-async function autoAddCommands(
+/**
+ * Prompt user to add commands from detected package.json scripts
+ */
+async function promptToAddCommands(
     projectId: string,
     appId: string,
-    detected: IDetectedApp
+    scripts: string[]
 ): Promise<void> {
-    if (detected.scripts.length === 0) return;
+    if (scripts.length === 0) return;
 
-    const commonScripts = ["dev", "start", "build"];
-    const scriptsToAdd = detected.scripts.filter((s) =>
-        commonScripts.includes(s)
-    );
+    const { wantToAdd } = await inquirer.prompt([
+        {
+            type: "confirm",
+            name: "wantToAdd",
+            message: "Add commands from package.json scripts?",
+            default: true,
+        },
+    ]);
 
-    if (scriptsToAdd.length > 0) {
-        const { addCommands } = await inquirer.prompt([
+    if (!wantToAdd) return;
+
+    const { selectedScripts } = await inquirer.prompt([
+        {
+            type: "checkbox",
+            name: "selectedScripts",
+            message: "Select scripts to add as commands:",
+            choices: scripts.map((s) => ({ name: s, value: s, checked: false })),
+        },
+    ]);
+
+    for (const script of selectedScripts as string[]) {
+        projectService.addAppCommand(projectId, appId, {
+            name: script,
+            type: "direct",
+            command: `npm run ${script}`,
+        });
+    }
+
+    if (selectedScripts.length > 0) {
+        console.log(chalk.dim(`Added ${selectedScripts.length} commands`));
+    }
+
+    // Offer custom command
+    const { addCustom } = await inquirer.prompt([
+        {
+            type: "confirm",
+            name: "addCustom",
+            message: "Add a custom command?",
+            default: false,
+        },
+    ]);
+
+    if (addCustom) {
+        const { name, command } = await inquirer.prompt([
             {
-                type: "confirm",
-                name: "addCommands",
-                message: `Add common commands (${scriptsToAdd.join(", ")})?`,
-                default: true,
+                type: "input",
+                name: "name",
+                message: "Command name:",
+                validate: (input: string) => input.length > 0 || "Name is required",
+            },
+            {
+                type: "input",
+                name: "command",
+                message: "Command to run:",
+                validate: (input: string) => input.length > 0 || "Command is required",
             },
         ]);
 
-        if (addCommands) {
-            for (const script of scriptsToAdd) {
-                projectService.addAppCommand(projectId, appId, {
-                    name: script,
-                    type: "direct",
-                    command: `npm run ${script}`,
-                });
-            }
-            console.log(chalk.dim(`Added ${scriptsToAdd.length} commands`));
-        }
+        projectService.addAppCommand(projectId, appId, {
+            name,
+            type: "direct",
+            command,
+        });
+        console.log(chalk.dim(`Added custom command: ${name}`));
     }
 }
 
@@ -1135,26 +1191,65 @@ async function addProjectCommandFlow(projectId: string): Promise<void> {
 
         let addingSteps = true;
         while (addingSteps) {
+            // Show current steps summary
+            if (steps.length > 0) {
+                console.log(chalk.dim(`\nCurrent steps (${steps.length}):`));
+                steps.forEach((s, i) => {
+                    let stepDesc = "";
+                    if (s.type === "delay") stepDesc = `Delay ${(s.delay_ms || 0) / 1000}s`;
+                    else if (s.type === "tunnel") stepDesc = "Start tunnel";
+                    else if (s.type === "app_command") stepDesc = "App command";
+                    else if (s.type === "custom") stepDesc = s.custom_command || "Custom";
+                    console.log(chalk.dim(`  ${i + 1}. ${stepDesc}`));
+                });
+                console.log("");
+            }
+
+            const choices: Array<{ name: string; value: string } | inquirer.Separator> = [];
+
+            if (project.apps.length > 0) {
+                choices.push({ name: `${ICONS.APP}  App command`, value: "app_command" });
+            }
+            choices.push(
+                { name: `${ICONS.TUNNEL}  Start tunnel`, value: "tunnel" },
+                { name: `${ICONS.COMMAND}  Custom command`, value: "custom" },
+                { name: `${ICONS.DELAY}  Delay`, value: "delay" }
+            );
+
+            if (steps.length > 0) {
+                choices.push(
+                    new inquirer.Separator(),
+                    { name: `${ICONS.DELETE}  Remove last step`, value: "remove_last" }
+                );
+            }
+
+            choices.push(
+                new inquirer.Separator(),
+                { name: `✓  Done adding steps`, value: "done" },
+                { name: `${ICONS.BACK}  Cancel`, value: "cancel" }
+            );
+
             const { stepType } = await inquirer.prompt([
                 {
                     type: "list",
                     name: "stepType",
                     message: `Step ${steps.length + 1}:`,
-                    choices: [
-                        ...(project.apps.length > 0
-                            ? [{ name: `${ICONS.APP}  App command`, value: "app_command" }]
-                            : []),
-                        { name: `${ICONS.TUNNEL}  Start tunnel`, value: "tunnel" },
-                        { name: `${ICONS.COMMAND}  Custom command`, value: "custom" },
-                        { name: `${ICONS.DELAY}  Delay`, value: "delay" },
-                        new inquirer.Separator(),
-                        { name: `✓  Done adding steps`, value: "done" },
-                    ],
+                    choices,
                 },
             ]);
 
             if (stepType === "done") {
                 addingSteps = false;
+                continue;
+            }
+
+            if (stepType === "cancel") {
+                return; // Exit without saving
+            }
+
+            if (stepType === "remove_last") {
+                steps.pop();
+                console.log(chalk.yellow("Last step removed"));
                 continue;
             }
 

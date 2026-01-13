@@ -179,6 +179,9 @@ export class ProcessService {
         if (!this.isPollingActive) return;
 
         const interval = setInterval(async () => {
+            // Update lastPolledAt timestamp
+            this.updateProcessPolledTime(pid);
+
             if (!this.isProcessRunning(pid)) {
                 logger.warn(`Process ${pid} died, attempting restart...`);
 
@@ -195,6 +198,20 @@ export class ProcessService {
         }, pollIntervalMs);
 
         this.pollingIntervals.set(pid, interval);
+    }
+
+    /**
+     * Update the lastPolledAt timestamp for a process
+     */
+    private updateProcessPolledTime(pid: number): void {
+        const processes = storageService.getAllProcesses();
+        const processIndex = processes.findIndex((p) => p.pid === pid);
+        if (processIndex >= 0) {
+            processes[processIndex].lastPolledAt = new Date().toISOString();
+            // Update the process in storage
+            storageService.deleteProcess(pid);
+            storageService.saveProcess(processes[processIndex]);
+        }
     }
 
     /**
