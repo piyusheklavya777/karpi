@@ -564,15 +564,42 @@ export class ProjectService {
             return null;
         }
 
-        const pids: number[] = [];
+        const childPids: number[] = [];
 
+        // Execute all steps and collect PIDs
         for (const step of command.steps) {
             const pid = await this.executeStep(project, step, contextApp);
-            if (pid) pids.push(pid);
+            if (pid) childPids.push(pid);
         }
 
-        // Return the first PID (or last?) - sequences are fire-and-forget
-        return pids[0] || null;
+        if (childPids.length === 0) {
+            logger.error("No processes started from sequence");
+            return null;
+        }
+
+        // Create a parent "virtual" process to track the sequence
+        // We use the first child PID as the parent PID for tracking purposes
+        const parentPid = childPids[0];
+
+        // Update the parent process to include all child PIDs
+        const parentProcess = processService.getProcess(parentPid);
+        if (parentProcess) {
+            parentProcess.childPids = childPids.slice(1); // All except itself
+            storageService.deleteProcess(parentPid);
+            storageService.saveProcess(parentProcess);
+        }
+
+        // Update all child processes to know their parent
+        for (let i = 1; i < childPids.length; i++) {
+            const childProcess = processService.getProcess(childPids[i]);
+            if (childProcess) {
+                childProcess.parentPid = parentPid;
+                storageService.deleteProcess(childPids[i]);
+                storageService.saveProcess(childProcess);
+            }
+        }
+
+        return parentPid;
     }
 
     private async executeStep(
@@ -641,6 +668,36 @@ export class ProjectService {
      */
     getCommandProcess(commandId: string): IBackgroundProcess | undefined {
         return processService.getCommandProcess(commandId);
+    }
+
+    /**
+     * Stop all running commands for a project
+     */
+    async stopAllProjectCommands(projectId: string): Promise<number> {
+        const processes = processService.getProjectProcesses(projectId);
+        let stoppedCount = 0;
+
+        for (const proc of processes) {
+            const success = await processService.killProcess(proc.pid);
+            if (success) stoppedCount++;
+        }
+
+        return stoppedCount;
+    }
+
+    /**
+     * Stop all running commands for an app
+     */
+    async stopAllAppCommands(appId: string): Promise<number> {
+        const processes = processService.getAppProcesses(appId);
+        let stoppedCount = 0;
+
+        for (const proc of processes) {
+            const success = await processService.killProcess(proc.pid);
+            if (success) stoppedCount++;
+        }
+
+        return stoppedCount;
     }
 }
 

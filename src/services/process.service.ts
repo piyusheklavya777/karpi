@@ -86,13 +86,23 @@ export class ProcessService {
     }
 
     /**
-     * Kill a process by PID
+     * Kill a process by PID (recursively kills child processes first)
      */
     async killProcess(pid: number): Promise<boolean> {
         try {
+            // First, kill all child processes
+            const proc = this.getProcess(pid);
+            if (proc?.childPids && proc.childPids.length > 0) {
+                logger.info(`Stopping ${proc.childPids.length} child processes...`);
+                for (const childPid of proc.childPids) {
+                    await this.killProcess(childPid); // Recursive call
+                }
+            }
+
             // Stop any polling for this process
             this.stopPollingForProcess(pid);
 
+            // Kill the process itself
             process.kill(pid);
             storageService.deleteProcess(pid);
             logger.success(`Process ${pid} killed`);
@@ -137,6 +147,13 @@ export class ProcessService {
         return this.listActiveProcesses().find(
             (p) => p.type === "command" && p.commandId === commandId
         );
+    }
+
+    /**
+     * Get a specific process by PID
+     */
+    getProcess(pid: number): IBackgroundProcess | undefined {
+        return storageService.getAllProcesses().find((p) => p.pid === pid);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════

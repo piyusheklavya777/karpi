@@ -36,6 +36,9 @@ export interface IBackgroundProcess {
   name: string;
   startTime: string;
   lastPolledAt?: string; // ISO timestamp of last poll check
+  // Parent-child process tracking (for sequence commands):
+  parentPid?: number; // PID of parent sequence command
+  childPids?: number[]; // PIDs of child processes spawned by this process
 }
 
 export interface IUserPreferences {

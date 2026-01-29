@@ -128,6 +128,9 @@ async function projectActionsMenu(projectId: string): Promise<void> {
             case "add_command":
                 await addProjectCommandFlow(projectId);
                 break;
+            case "stop_all":
+                await stopAllProjectCommandsFlow(projectId);
+                break;
             case "delete_project":
                 const deleted = await deleteProjectFlow(projectId);
                 if (deleted) running = false;
@@ -182,6 +185,9 @@ async function appActionsMenu(projectId: string, appId: string): Promise<void> {
         switch (action) {
             case "add_command":
                 await addAppCommandFlow(projectId, appId);
+                break;
+            case "stop_all":
+                await stopAllAppCommandsFlow(appId);
                 break;
             case "delete_app":
                 const deleted = await deleteAppFlow(projectId, appId);
@@ -715,6 +721,18 @@ function buildProjectActionsChoices(
         value: "add_command",
     });
 
+    // Stop All option if any processes are running
+    const runningProcesses = processService.getProjectProcesses(project.id);
+    if (runningProcesses.length > 0) {
+        choices.push(
+            new inquirer.Separator(chalk.dim("─── Actions ───────────────────────")),
+            {
+                name: `${ICONS.STOP}  ${chalk.red(`Stop All Running Commands (${runningProcesses.length})`)}`,
+                value: "stop_all",
+            }
+        );
+    }
+
     // Actions
     choices.push(
         new inquirer.Separator(chalk.dim("─── Danger Zone ───────────────────")),
@@ -777,6 +795,18 @@ function buildAppActionsChoices(
         name: `${ICONS.ADD}  Add Command`,
         value: "add_command",
     });
+
+    // Stop All option if any processes are running
+    const runningProcesses = processService.getAppProcesses(app.id);
+    if (runningProcesses.length > 0) {
+        choices.push(
+            new inquirer.Separator(chalk.dim("─── Actions ───────────────────────")),
+            {
+                name: `${ICONS.STOP}  ${chalk.red(`Stop All Running Commands (${runningProcesses.length})`)}`,
+                value: "stop_all",
+            }
+        );
+    }
 
     // Actions
     choices.push(
@@ -1796,6 +1826,18 @@ async function runProjectCommand(
 async function stopCommand(pid: number): Promise<void> {
     await projectService.stopCommand(pid);
     console.log(chalk.green(`\n${UI.ICONS.SUCCESS} Command stopped`));
+    await waitForEnter();
+}
+
+async function stopAllProjectCommandsFlow(projectId: string): Promise<void> {
+    const count = await projectService.stopAllProjectCommands(projectId);
+    console.log(chalk.green(`\n${UI.ICONS.SUCCESS} Stopped ${count} command(s)`));
+    await waitForEnter();
+}
+
+async function stopAllAppCommandsFlow(appId: string): Promise<void> {
+    const count = await projectService.stopAllAppCommands(appId);
+    console.log(chalk.green(`\n${UI.ICONS.SUCCESS} Stopped ${count} command(s)`));
     await waitForEnter();
 }
 
