@@ -270,8 +270,7 @@ async function appCommandActionsMenu(
             await runAppCommand(projectId, appId, commandId);
             break;
         case "restart":
-            if (proc) await stopCommand(proc.pid);
-            await runAppCommand(projectId, appId, commandId);
+            await restartAppCommand(projectId, appId, commandId);
             break;
         case "stop":
             if (proc) await stopCommand(proc.pid);
@@ -346,8 +345,7 @@ async function projectCommandActionsMenu(
             await runProjectCommand(projectId, commandId);
             break;
         case "restart":
-            if (proc) await stopCommand(proc.pid);
-            await runProjectCommand(projectId, commandId);
+            await restartProjectCommand(projectId, commandId);
             break;
         case "stop":
             if (proc) await stopCommand(proc.pid);
@@ -1819,6 +1817,33 @@ async function runProjectCommand(
         }
     } else {
         console.log(chalk.red(`\n${UI.ICONS.ERROR} Failed to start command`));
+    }
+    await waitForEnter();
+}
+
+async function restartAppCommand(
+    projectId: string,
+    appId: string,
+    commandId: string
+): Promise<void> {
+    const pid = await projectService.restartAppCommand(projectId, appId, commandId);
+    if (pid) {
+        console.log(chalk.green(`\n${UI.ICONS.SUCCESS} Command restarted (PID: ${pid})`));
+    } else {
+        console.log(chalk.red(`\n${UI.ICONS.ERROR} Failed to restart command`));
+    }
+    await waitForEnter();
+}
+
+async function restartProjectCommand(
+    projectId: string,
+    commandId: string
+): Promise<void> {
+    const pid = await projectService.restartProjectCommand(projectId, commandId);
+    if (pid) {
+        console.log(chalk.green(`\n${UI.ICONS.SUCCESS} Command restarted (PID: ${pid})`));
+    } else {
+        console.log(chalk.red(`\n${UI.ICONS.ERROR} Failed to restart command`));
     }
     await waitForEnter();
 }

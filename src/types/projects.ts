@@ -44,6 +44,7 @@ export interface ICommand {
     // For direct commands:
     command?: string; // e.g., "npm run dev"
     working_dir?: string; // Override working directory
+    ports?: number[]; // Ports this command uses (for conflict resolution)
     // For sequences:
     steps?: ICommandStep[];
     // Auto-restart configuration (optional)

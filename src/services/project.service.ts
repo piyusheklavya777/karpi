@@ -526,6 +526,12 @@ export class ProjectService {
         const cmd = parts[0];
         const args = parts.slice(1);
 
+        // Kill any processes using the ports this command needs
+        if (command.ports && command.ports.length > 0) {
+            logger.info(`Clearing ports: ${command.ports.join(", ")}`);
+            await processService.killProcessesOnPorts(command.ports);
+        }
+
         const processInfo: Omit<IBackgroundProcess, "pid" | "startTime"> = {
             type: "command",
             serverId: "", // Not applicable for commands
@@ -567,9 +573,25 @@ export class ProjectService {
         const childPids: number[] = [];
 
         // Execute all steps and collect PIDs
-        for (const step of command.steps) {
+        for (let i = 0; i < command.steps.length; i++) {
+            const step = command.steps[i];
             const pid = await this.executeStep(project, step, contextApp);
-            if (pid) childPids.push(pid);
+
+            if (!pid) {
+                // Step failed - kill all already-started processes
+                logger.error(`Sequence "${command.name}" failed at step ${i + 1}/${command.steps.length}`);
+
+                if (childPids.length > 0) {
+                    logger.info(`Cleaning up ${childPids.length} already-started process(es)...`);
+                    for (const childPid of childPids) {
+                        await processService.killProcess(childPid);
+                    }
+                }
+
+                return null; // Fail the entire sequence
+            }
+
+            childPids.push(pid);
         }
 
         if (childPids.length === 0) {
@@ -599,6 +621,7 @@ export class ProjectService {
             }
         }
 
+        logger.success(`Sequence "${command.name}" started successfully with ${childPids.length} process(es)`);
         return parentPid;
     }
 
@@ -646,6 +669,35 @@ export class ProjectService {
             default:
                 return null;
         }
+    }
+
+    /**
+     * Restart an app command (stop + start in one operation)
+     */
+    async restartAppCommand(
+        projectId: string,
+        appId: string,
+        commandId: string
+    ): Promise<number | null> {
+        const proc = processService.getCommandProcess(commandId);
+        if (proc) {
+            await processService.killProcess(proc.pid); // Kills all children too
+        }
+        return this.runAppCommand(projectId, appId, commandId);
+    }
+
+    /**
+     * Restart a project command (stop + start in one operation)
+     */
+    async restartProjectCommand(
+        projectId: string,
+        commandId: string
+    ): Promise<number | null> {
+        const proc = processService.getCommandProcess(commandId);
+        if (proc) {
+            await processService.killProcess(proc.pid); // Kills all children too
+        }
+        return this.runProjectCommand(projectId, commandId);
     }
 
     /**

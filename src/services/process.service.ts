@@ -16,7 +16,7 @@ export class ProcessService {
     private isPollingActive: boolean = false;
 
     /**
-     * Start a background process with detached stdio
+     * Start a background process with startup verification
      */
     async startProcess(config: {
         command: string;
@@ -25,29 +25,72 @@ export class ProcessService {
         processInfo: Omit<IBackgroundProcess, "pid" | "startTime">;
     }): Promise<number | null> {
         try {
+            // Capture output during startup for error detection
             const subprocess = spawn(config.command, config.args, {
                 detached: true,
-                stdio: "ignore",
+                stdio: ["ignore", "pipe", "pipe"], // Capture stdout/stderr initially
                 cwd: config.cwd,
             });
 
-            subprocess.unref();
-
-            if (subprocess.pid) {
-                const processInfo: IBackgroundProcess = {
-                    ...config.processInfo,
-                    pid: subprocess.pid,
-                    startTime: new Date().toISOString(),
-                };
-
-                storageService.saveProcess(processInfo);
-                logger.success(`Process started (PID: ${subprocess.pid})`);
-
-                return subprocess.pid;
-            } else {
+            if (!subprocess.pid) {
                 logger.error("Failed to get process PID");
                 return null;
             }
+
+            const pid = subprocess.pid;
+            let startupLogs = "";
+            let hasError = false;
+
+            // Collect startup logs
+            subprocess.stdout?.on("data", (data) => {
+                startupLogs += data.toString();
+            });
+
+            subprocess.stderr?.on("data", (data) => {
+                const errorText = data.toString();
+                startupLogs += errorText;
+                // Look for common error patterns
+                if (
+                    errorText.includes("EADDRINUSE") ||
+                    errorText.includes("Error:") ||
+                    errorText.includes("ERROR") ||
+                    errorText.includes("ENOENT")
+                ) {
+                    hasError = true;
+                }
+            });
+
+            // Wait 2 seconds to verify startup
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+
+            // Check if process is still running
+            if (!this.isProcessRunning(pid)) {
+                logger.error(`Process ${pid} failed to start. Output:\n${startupLogs}`);
+                subprocess.stdout?.destroy();
+                subprocess.stderr?.destroy();
+                return null;
+            }
+
+            // If we detected errors but process is still running, warn but continue
+            if (hasError) {
+                logger.warn(`Process ${pid} started but showed errors:\n${startupLogs.slice(-500)}`);
+            }
+
+            // Process is running successfully, detach stdio and unref
+            subprocess.stdout?.destroy();
+            subprocess.stderr?.destroy();
+            subprocess.unref();
+
+            const processInfo: IBackgroundProcess = {
+                ...config.processInfo,
+                pid,
+                startTime: new Date().toISOString(),
+            };
+
+            storageService.saveProcess(processInfo);
+            logger.success(`Process started (PID: ${pid})`);
+
+            return pid;
         } catch (error) {
             logger.error("Failed to start process", error);
             return null;
@@ -154,6 +197,48 @@ export class ProcessService {
      */
     getProcess(pid: number): IBackgroundProcess | undefined {
         return storageService.getAllProcesses().find((p) => p.pid === pid);
+    }
+
+    /**
+     * Kill any processes using the specified ports
+     * Used before starting commands to clear port conflicts
+     */
+    async killProcessesOnPorts(ports: number[]): Promise<void> {
+        if (!ports || ports.length === 0) return;
+
+        const { execSync } = require("child_process");
+
+        for (const port of ports) {
+            try {
+                //Use lsof to find process using the port
+                const result = execSync(`lsof -ti:${port}`, { encoding: "utf-8" }).trim();
+
+                if (result) {
+                    const pids = result.split("\n").map((pid: string) => parseInt(pid.trim()));
+
+                    for (const pid of pids) {
+                        if (!isNaN(pid)) {
+                            logger.info(`Killing process ${pid} using port ${port}`);
+                            try {
+                                process.kill(pid, "SIGTERM");
+                                // Give it a moment to die gracefully
+                                await new Promise((resolve) => setTimeout(resolve, 500));
+                                // Force kill if still alive
+                                if (this.isProcessRunning(pid)) {
+                                    process.kill(pid, "SIGKILL");
+                                }
+                            } catch (err) {
+                                // Process might already be dead
+                                logger.debug(`Process ${pid} already dead`);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                // lsof returns non-zero if no process found, which is fine
+                logger.debug(`No process found on port ${port}`);
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
