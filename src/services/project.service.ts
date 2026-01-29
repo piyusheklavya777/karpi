@@ -381,6 +381,77 @@ export class ProjectService {
         return false;
     }
 
+    /**
+     * Update a command in an app
+     */
+    updateAppCommand(
+        projectId: string,
+        appId: string,
+        commandId: string,
+        updates: Partial<Omit<ICommand, "id">>
+    ): ICommand | null {
+        const project = this.getProject(projectId);
+        if (!project) {
+            logger.error("Project not found");
+            return null;
+        }
+
+        const appIndex = project.apps.findIndex((a) => a.id === appId);
+        if (appIndex === -1) {
+            logger.error("App not found");
+            return null;
+        }
+
+        const commandIndex = project.apps[appIndex].commands.findIndex(
+            (c) => c.id === commandId
+        );
+        if (commandIndex === -1) {
+            logger.error("Command not found");
+            return null;
+        }
+
+        const updatedCommand = {
+            ...project.apps[appIndex].commands[commandIndex],
+            ...updates,
+        };
+
+        project.apps[appIndex].commands[commandIndex] = updatedCommand;
+        storageService.saveProject(project);
+        logger.success(`Command "${updatedCommand.name}" updated`);
+        return updatedCommand;
+    }
+
+    /**
+     * Update a project-level command
+     */
+    updateProjectCommand(
+        projectId: string,
+        commandId: string,
+        updates: Partial<Omit<ICommand, "id">>
+    ): ICommand | null {
+        const project = this.getProject(projectId);
+        if (!project) {
+            logger.error("Project not found");
+            return null;
+        }
+
+        const commandIndex = project.commands.findIndex((c) => c.id === commandId);
+        if (commandIndex === -1) {
+            logger.error("Command not found");
+            return null;
+        }
+
+        const updatedCommand = {
+            ...project.commands[commandIndex],
+            ...updates,
+        };
+
+        project.commands[commandIndex] = updatedCommand;
+        storageService.saveProject(project);
+        logger.success(`Project command "${updatedCommand.name}" updated`);
+        return updatedCommand;
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════════
     // Command Execution
     // ═══════════════════════════════════════════════════════════════════════════════

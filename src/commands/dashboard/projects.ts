@@ -42,6 +42,8 @@ const ICONS = {
     LINK: "🔗",
     SEQUENCE: "📋",
     DELAY: "⏱️",
+    EDIT: "✏️",
+    INFO: "ℹ️",
 } as const;
 
 const BOX_CHARS = {
@@ -240,6 +242,9 @@ async function appCommandActionsMenu(
 
     choices.push(
         new inquirer.Separator(chalk.dim("─────────────────────")),
+        { name: `${ICONS.INFO}  View Details`, value: "details" },
+        { name: `${ICONS.EDIT}  Edit Command`, value: "edit" },
+        new inquirer.Separator(chalk.dim("─────────────────────")),
         { name: `${ICONS.DELETE}  ${chalk.red("Delete Command")}`, value: "delete" },
         new inquirer.Separator(chalk.dim("─────────────────────")),
         { name: `${ICONS.BACK}  Back`, value: "back" }
@@ -264,6 +269,12 @@ async function appCommandActionsMenu(
             break;
         case "stop":
             if (proc) await stopCommand(proc.pid);
+            break;
+        case "details":
+            await displayCommandDetails(project, app, command, isRunning, proc);
+            break;
+        case "edit":
+            await editAppCommandFlow(projectId, appId, commandId);
             break;
         case "delete":
             await deleteAppCommand(projectId, appId, commandId);
@@ -307,6 +318,9 @@ async function projectCommandActionsMenu(
 
     choices.push(
         new inquirer.Separator(chalk.dim("─────────────────────")),
+        { name: `${ICONS.INFO}  View Details`, value: "details" },
+        { name: `${ICONS.EDIT}  Edit Command`, value: "edit" },
+        new inquirer.Separator(chalk.dim("─────────────────────")),
         { name: `${ICONS.DELETE}  ${chalk.red("Delete Command")}`, value: "delete" },
         new inquirer.Separator(chalk.dim("─────────────────────")),
         { name: `${ICONS.BACK}  Back`, value: "back" }
@@ -331,6 +345,12 @@ async function projectCommandActionsMenu(
             break;
         case "stop":
             if (proc) await stopCommand(proc.pid);
+            break;
+        case "details":
+            await displayCommandDetails(project, undefined, command, isRunning, proc);
+            break;
+        case "edit":
+            await editProjectCommandFlow(projectId, commandId);
             break;
         case "delete":
             projectService.deleteProjectCommand(projectId, commandId);
@@ -458,6 +478,124 @@ function displayCommandHeader(
         console.log(chalk.dim(`PID: ${proc.pid}`));
     }
     console.log(border + "\n");
+}
+
+async function displayCommandDetails(
+    project: IProject,
+    app: IApp | undefined,
+    command: ICommand,
+    isRunning: boolean,
+    proc?: IBackgroundProcess
+): Promise<void> {
+    console.clear();
+
+    const statusBadge = isRunning
+        ? chalk.bgGreen.black(" RUNNING ")
+        : chalk.bgGray.white(" STOPPED ");
+
+    const typeLabel = command.type === "sequence" ? "Sequence" : "Direct";
+    const title = `${ICONS.INFO}  ${chalk.bold.hex(COLORS.PRIMARY)(
+        command.name
+    )} - Details  ${statusBadge}`;
+    const border = chalk.hex(COLORS.SECONDARY)(BOX_CHARS.HORIZONTAL.repeat(50));
+
+    console.log("\n" + border);
+    console.log(title);
+    console.log(border + "\n");
+
+    // Build details array
+    const details: string[] = [];
+
+    details.push(`${chalk.dim("Name:")}         ${chalk.white(command.name)}`);
+    details.push(`${chalk.dim("Type:")}         ${chalk.white(typeLabel)}`);
+    details.push(`${chalk.dim("ID:")}           ${chalk.dim(command.id)}`);
+
+    if (command.command) {
+        details.push(`${chalk.dim("Command:")}      ${chalk.cyan(command.command)}`);
+    }
+
+    if (command.working_dir) {
+        details.push(`${chalk.dim("Working Dir:")} ${chalk.white(command.working_dir)}`);
+    } else if (app) {
+        const workDir = path.join(project.base_path, app.relative_path);
+        details.push(`${chalk.dim("Working Dir:")} ${chalk.white(workDir)}`);
+    } else {
+        details.push(`${chalk.dim("Working Dir:")} ${chalk.white(project.base_path)}`);
+    }
+
+    // Auto-restart settings
+    if (command.auto_restart) {
+        const pollSec = command.poll_interval_ms
+            ? (command.poll_interval_ms / 1000).toFixed(1)
+            : "10.0";
+        details.push(
+            `${chalk.dim("Auto-Restart:")} ${chalk.green("Enabled")} (poll every ${pollSec}s)`
+        );
+    } else {
+        details.push(`${chalk.dim("Auto-Restart:")} ${chalk.dim("Disabled")}`);
+    }
+
+    // Running status
+    if (isRunning && proc) {
+        details.push("");
+        details.push(chalk.bold.green("▶ Currently Running"));
+        details.push(`${chalk.dim("  PID:")}        ${chalk.white(proc.pid.toString())}`);
+        details.push(
+            `${chalk.dim("  Started:")}    ${chalk.white(
+                format(new Date(proc.startTime), "PPpp")
+            )}`
+        );
+        if (proc.lastPolledAt) {
+            const polledAgo = Math.round(
+                (Date.now() - new Date(proc.lastPolledAt).getTime()) / 1000
+            );
+            details.push(`${chalk.dim("  Last Poll:")}  ${chalk.white(`${polledAgo}s ago`)}`);
+        }
+    }
+
+    // Show sequence steps
+    if (command.type === "sequence" && command.steps && command.steps.length > 0) {
+        details.push("");
+        details.push(chalk.bold(`${ICONS.SEQUENCE} Sequence Steps (${command.steps.length}):`));
+
+        command.steps.forEach((step, index) => {
+            let stepDesc = "";
+            const stepNum = chalk.dim(`  ${index + 1}.`);
+
+            switch (step.type) {
+                case "app_command": {
+                    const stepApp = project.apps.find((a) => a.id === step.app_id);
+                    const stepCmd = stepApp?.commands.find((c) => c.id === step.command_id);
+                    stepDesc = `${ICONS.COMMAND} Run "${stepCmd?.name || "Unknown"}" from "${stepApp?.name || "Unknown"}"`;
+                    break;
+                }
+                case "tunnel":
+                    stepDesc = `${ICONS.TUNNEL} Start tunnel (server: ${step.server_id?.slice(0, 8)}...)`;
+                    break;
+                case "custom":
+                    stepDesc = `${ICONS.CUSTOM} ${step.custom_command}`;
+                    break;
+                case "delay":
+                    stepDesc = `${ICONS.DELAY} Wait ${step.delay_ms}ms`;
+                    break;
+            }
+
+            details.push(`${stepNum} ${stepDesc}`);
+        });
+    }
+
+    console.log(
+        boxen(details.join("\n"), {
+            padding: { top: 0, bottom: 0, left: 1, right: 1 },
+            margin: { top: 0, bottom: 1, left: 2, right: 2 },
+            borderStyle: "round",
+            borderColor: "gray",
+            title: chalk.dim("Command Details"),
+            titleAlignment: "left",
+        })
+    );
+
+    await waitForEnter();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1377,6 +1515,219 @@ async function addProjectCommandFlow(projectId: string): Promise<void> {
     }
 
     console.log(chalk.green(`\n${UI.ICONS.SUCCESS} Project command added!`));
+    await waitForEnter();
+}
+
+async function editAppCommandFlow(
+    projectId: string,
+    appId: string,
+    commandId: string
+): Promise<void> {
+    const project = projectService.getProject(projectId);
+    const app = project?.apps.find((a) => a.id === appId);
+    const command = app?.commands.find((c) => c.id === commandId);
+    if (!project || !app || !command) return;
+
+    console.clear();
+    console.log(
+        chalk.bold.hex(COLORS.PRIMARY)(
+            "\n" + ICONS.EDIT + `  Edit Command: ${command.name}\n`
+        )
+    );
+
+    // Show current values and let user edit
+    const { field } = await inquirer.prompt([
+        {
+            type: "list",
+            name: "field",
+            message: "What would you like to edit?",
+            choices: [
+                { name: `📝 Name (current: ${command.name})`, value: "name" },
+                ...(command.type === "direct"
+                    ? [{ name: `⚙️  Command (current: ${command.command || "N/A"})`, value: "command" }]
+                    : []),
+                {
+                    name: `🔄 Auto-Restart (current: ${command.auto_restart ? "Enabled" : "Disabled"})`,
+                    value: "auto_restart",
+                },
+                new inquirer.Separator(chalk.dim("─────────────────────")),
+                { name: `${ICONS.BACK}  Cancel`, value: "cancel" },
+            ],
+        },
+    ]);
+
+    if (field === "cancel") return;
+
+    const updates: Partial<Omit<ICommand, "id">> = {};
+
+    if (field === "name") {
+        const { newName } = await inquirer.prompt([
+            {
+                type: "input",
+                name: "newName",
+                message: "New command name:",
+                default: command.name,
+                validate: (input: string) => input.length > 0 || "Name is required",
+            },
+        ]);
+        updates.name = newName;
+    } else if (field === "command") {
+        const { newCommand } = await inquirer.prompt([
+            {
+                type: "input",
+                name: "newCommand",
+                message: "New command:",
+                default: command.command,
+                validate: (input: string) => input.length > 0 || "Command is required",
+            },
+        ]);
+        updates.command = newCommand;
+    } else if (field === "auto_restart") {
+        const { autoRestart } = await inquirer.prompt([
+            {
+                type: "confirm",
+                name: "autoRestart",
+                message: "Enable auto-restart if process dies?",
+                default: command.auto_restart || false,
+            },
+        ]);
+        updates.auto_restart = autoRestart;
+
+        if (autoRestart) {
+            const currentPollSec = command.poll_interval_ms
+                ? command.poll_interval_ms / 1000
+                : 10;
+            const { interval } = await inquirer.prompt([
+                {
+                    type: "number",
+                    name: "interval",
+                    message: "Poll interval (seconds):",
+                    default: currentPollSec,
+                },
+            ]);
+            updates.poll_interval_ms = interval * 1000;
+        } else {
+            updates.poll_interval_ms = undefined;
+        }
+    }
+
+    const updated = projectService.updateAppCommand(projectId, appId, commandId, updates);
+    if (updated) {
+        console.log(chalk.green(`\n${UI.ICONS.SUCCESS} Command updated!`));
+    } else {
+        console.log(chalk.red(`\n${UI.ICONS.ERROR} Failed to update command.`));
+    }
+
+    await waitForEnter();
+}
+
+async function editProjectCommandFlow(
+    projectId: string,
+    commandId: string
+): Promise<void> {
+    const project = projectService.getProject(projectId);
+    const command = project?.commands.find((c) => c.id === commandId);
+    if (!project || !command) return;
+
+    console.clear();
+    console.log(
+        chalk.bold.hex(COLORS.PRIMARY)(
+            "\n" + ICONS.EDIT + `  Edit Project Command: ${command.name}\n`
+        )
+    );
+
+    // Show current values and let user edit
+    const choices: Array<{ name: string; value: string } | inquirer.Separator> = [
+        { name: `📝 Name (current: ${command.name})`, value: "name" },
+    ];
+
+    if (command.type === "direct") {
+        choices.push({
+            name: `⚙️  Command (current: ${command.command || "N/A"})`,
+            value: "command",
+        });
+    }
+
+    choices.push(
+        {
+            name: `🔄 Auto-Restart (current: ${command.auto_restart ? "Enabled" : "Disabled"})`,
+            value: "auto_restart",
+        },
+        new inquirer.Separator(chalk.dim("─────────────────────")),
+        { name: `${ICONS.BACK}  Cancel`, value: "cancel" }
+    );
+
+    const { field } = await inquirer.prompt([
+        {
+            type: "list",
+            name: "field",
+            message: "What would you like to edit?",
+            choices,
+        },
+    ]);
+
+    if (field === "cancel") return;
+
+    const updates: Partial<Omit<ICommand, "id">> = {};
+
+    if (field === "name") {
+        const { newName } = await inquirer.prompt([
+            {
+                type: "input",
+                name: "newName",
+                message: "New command name:",
+                default: command.name,
+                validate: (input: string) => input.length > 0 || "Name is required",
+            },
+        ]);
+        updates.name = newName;
+    } else if (field === "command") {
+        const { newCommand } = await inquirer.prompt([
+            {
+                type: "input",
+                name: "newCommand",
+                message: "New command:",
+                default: command.command,
+                validate: (input: string) => input.length > 0 || "Command is required",
+            },
+        ]);
+        updates.command = newCommand;
+    } else if (field === "auto_restart") {
+        const { autoRestart } = await inquirer.prompt([
+            {
+                type: "confirm",
+                name: "autoRestart",
+                message: "Enable auto-restart if process dies?",
+                default: command.auto_restart || false,
+            },
+        ]);
+        updates.auto_restart = autoRestart;
+
+        if (autoRestart) {
+            const currentPollSec = command.poll_interval_ms
+                ? command.poll_interval_ms / 1000
+                : 10;
+            const { interval } = await inquirer.prompt([
+                {
+                    type: "number",
+                    name: "interval",
+                    message: "Poll interval (seconds):",
+                    default: currentPollSec,
+                },
+            ]);
+            updates.poll_interval_ms = interval * 1000;
+        } else {
+            updates.poll_interval_ms = undefined;
+        }
+    }
+
+    const updated = projectService.updateProjectCommand(projectId, commandId, updates);
+    if (updated) {
+        console.log(chalk.green(`\n${UI.ICONS.SUCCESS} Project command updated!`));
+    } else {
+        console.log(chalk.red(`\n${UI.ICONS.ERROR} Failed to update command.`));
+    }
+
     await waitForEnter();
 }
 

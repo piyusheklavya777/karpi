@@ -1,6 +1,7 @@
 // src/types/index.ts
 
 // Re-export project types
+import type { IProject, IRecentCommand } from "./projects";
 export * from "./projects";
 
 export interface IUserProfile {
