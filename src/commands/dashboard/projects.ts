@@ -632,6 +632,7 @@ function buildMainMenuChoices(
                 name: displayName,
                 value: `project:${project.id}`,
             });
+            choices.push(new inquirer.Separator(" "));
         });
     }
 
@@ -675,6 +676,7 @@ function buildProjectActionsChoices(
                 name: displayName,
                 value: `app:${app.id}`,
             });
+            choices.push(new inquirer.Separator(" "));
         });
     }
 
@@ -711,6 +713,7 @@ function buildProjectActionsChoices(
                 name: displayName,
                 value: `cmd:${cmd.id}`,
             });
+            choices.push(new inquirer.Separator(" "));
         });
     }
 
@@ -786,6 +789,7 @@ function buildAppActionsChoices(
                 name: displayName,
                 value: `cmd:${cmd.id}`,
             });
+            choices.push(new inquirer.Separator(" "));
         });
     }
 

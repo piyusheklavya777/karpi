@@ -433,6 +433,7 @@ function buildMainMenuChoices(
         name: displayName,
         value: `server:${server.id}`,
       });
+      choices.push(new inquirer.Separator(" "));
     });
   }
 
@@ -482,6 +483,7 @@ function buildServerActionsChoices(
         name: `${status}  ${chalk.bold(tunnel.name)} (${tunnel.type}) ${statusText}`,
         value: `tunnel:${tunnel.id}`,
       });
+      choices.push(new inquirer.Separator(" "));
     });
   }
 
@@ -517,6 +519,7 @@ function buildServerActionsChoices(
         name: `${icon}  ${chalk.bold(sf.name)} ${lastSync}`,
         value: `syncedfile:${sf.id}`,
       });
+      choices.push(new inquirer.Separator(" "));
     });
   }
 

@@ -530,6 +530,7 @@ function buildMainMenuChoices(
         name: `${ICONS.AWS}  ${chalk.bold(profile.name)} (${authType}: ${region})`,
         value: `profile:${profile.id}`,
       });
+      choices.push(new inquirer.Separator(" "));
     });
   }
 

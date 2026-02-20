@@ -162,6 +162,7 @@ export async function dashboardCommand(): Promise<void> {
           name: `  ▶️  ${chalk.hex(COLORS.PRIMARY)(displayName)}`,
           value: { type: "recentCommand", data: cmd },
         });
+        choices.push(new inquirer.Separator(" "));
       });
 
       // Recent actions
@@ -176,6 +177,7 @@ export async function dashboardCommand(): Promise<void> {
           name: `  ${icon} ${actionName}  → ${typeLabel}`,
           value: { type: "recent", data: action },
         });
+        choices.push(new inquirer.Separator(" "));
       });
 
       // Active processes (with kill option)
@@ -184,6 +186,7 @@ export async function dashboardCommand(): Promise<void> {
           name: `  ${MENU_ICONS.KILL} Stop: ${proc.name} PID ${proc.pid}`,
           value: { type: "process", data: proc },
         });
+        choices.push(new inquirer.Separator(" "));
       });
     }
 

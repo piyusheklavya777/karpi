@@ -6,13 +6,24 @@ import { APP_NAME, APP_VERSION, APP_DESCRIPTION } from './config/constants';
 import { loginCommand } from './commands/auth/login';
 import { logoutCommand } from './commands/auth/logout';
 import { dashboardCommand } from './commands/dashboard';
+import { registerCLICommands } from './commands/cli';
+import { setJsonMode } from './utils/cli-helpers';
 
 const program = new Command();
 
 program
   .name(APP_NAME.toLowerCase())
   .description(APP_DESCRIPTION)
-  .version(APP_VERSION);
+  .version(APP_VERSION)
+  .option('--json', 'Output in JSON format for machine parsing');
+
+// Set JSON mode from global option before any command runs
+program.hook('preAction', (thisCommand) => {
+  const opts = thisCommand.optsWithGlobals();
+  if (opts.json) {
+    setJsonMode(true);
+  }
+});
 
 // Login command
 program
@@ -224,6 +235,9 @@ program
       console.log(chalk.dim('\nTry manually: brew update && brew upgrade karpi'));
     }
   });
+
+// Register all non-interactive CLI commands
+registerCLICommands(program);
 
 // Default action (no command specified)
 program.action(async () => {

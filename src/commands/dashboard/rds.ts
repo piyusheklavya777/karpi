@@ -331,6 +331,7 @@ function buildMainMenuChoices(
         name: displayName,
         value: `rds:${rds.id}`,
       });
+      choices.push(new inquirer.Separator(" "));
     });
   }
 
