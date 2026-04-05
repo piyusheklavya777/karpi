@@ -18,18 +18,11 @@ import { projectService } from "../services/project.service";
 import { storageService } from "../services/storage.service";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// JSON mode global flag
+// JSON mode global flag (re-exported from isolated module to avoid circular deps)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-let jsonMode = false;
-
-export function setJsonMode(value: boolean): void {
-  jsonMode = value;
-}
-
-export function getJsonMode(): boolean {
-  return jsonMode;
-}
+import { setJsonMode, getJsonMode } from "./json-mode";
+export { setJsonMode, getJsonMode };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Auth guard
@@ -263,7 +256,7 @@ export function resolveAWSProfile(name: string): IAWSProfile {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function output(data: unknown, humanFormatter?: (data: unknown) => void): void {
-  if (jsonMode) {
+  if (getJsonMode()) {
     console.log(JSON.stringify(data, null, 2));
   } else if (humanFormatter) {
     humanFormatter(data);
@@ -273,7 +266,7 @@ export function output(data: unknown, humanFormatter?: (data: unknown) => void):
 }
 
 export function outputError(message: string): void {
-  if (jsonMode) {
+  if (getJsonMode()) {
     console.error(JSON.stringify({ error: message }));
   } else {
     console.error(chalk.red("Error: " + message));
@@ -281,7 +274,7 @@ export function outputError(message: string): void {
 }
 
 export function outputSuccess(message: string, data?: Record<string, unknown>): void {
-  if (jsonMode) {
+  if (getJsonMode()) {
     console.log(JSON.stringify({ success: true, message, ...data }));
   } else {
     console.log(chalk.green("\u2713 " + message));
@@ -292,7 +285,7 @@ export function outputTable(
   rows: Record<string, unknown>[],
   columns: { key: string; header: string; width?: number }[]
 ): void {
-  if (jsonMode) {
+  if (getJsonMode()) {
     console.log(JSON.stringify(rows, null, 2));
     return;
   }

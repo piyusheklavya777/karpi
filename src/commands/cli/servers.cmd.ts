@@ -46,6 +46,44 @@ export function registerServersCommand(program: Command): void {
       );
     });
 
+  // ── servers list-full (all servers with tunnels + synced files) ───────────
+  servers
+    .command("list-full")
+    .description("List all servers with full details (tunnels, synced files)")
+    .action(() => {
+      requireAuth();
+      const list = serverService.listServers();
+      const activeProcesses = processService.listActiveProcesses();
+      output(
+        list.map((s) => ({
+          id: s.id,
+          name: s.name,
+          host: s.host,
+          username: s.username,
+          last_connected: s.last_connected || null,
+          tunnels: (s.tunnels || []).map((t) => {
+            const proc = activeProcesses.find((p) => p.tunnelId === t.id);
+            return {
+              id: t.id,
+              name: t.name,
+              type: t.type,
+              local_port: t.localPort,
+              remote_host: t.remoteHost,
+              remote_port: t.remotePort,
+              running: !!proc,
+              pid: proc?.pid ?? null,
+              started_at: proc?.startTime ?? null,
+            };
+          }),
+          synced_files: (s.synced_files || []).map((f) => ({
+            id: f.id,
+            name: f.name,
+            last_synced: f.last_synced || null,
+          })),
+        }))
+      );
+    });
+
   // ── servers show <name> ───────────────────────────────────────────────────
   servers
     .command("show <name>")

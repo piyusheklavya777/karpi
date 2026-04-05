@@ -7,6 +7,8 @@ import { registerProcessesCommand } from "./processes.cmd";
 import { registerRDSCommand } from "./rds.cmd";
 import { registerAWSCommand } from "./aws.cmd";
 import { registerStatusCommand } from "./status.cmd";
+import { registerProfilesCommand } from "./profiles.cmd";
+import { registerAuthCommand } from "./auth.cmd";
 
 export function registerCLICommands(program: Command): void {
   registerServersCommand(program);
@@ -15,4 +17,6 @@ export function registerCLICommands(program: Command): void {
   registerRDSCommand(program);
   registerAWSCommand(program);
   registerStatusCommand(program);
+  registerProfilesCommand(program);
+  registerAuthCommand(program);
 }

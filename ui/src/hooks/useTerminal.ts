@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Terminal } from "xterm";
 import { FitAddon } from "@xterm/addon-fit";
 
@@ -19,6 +19,7 @@ interface ITerminalExit {
 interface IUseTerminalOptions {
   cwd?: string;
   onExit?: (exitCode: number | null) => void;
+  onSessionReady?: (sessionId: number) => void;
 }
 
 export function useTerminal(options: IUseTerminalOptions = {}) {
@@ -101,12 +102,13 @@ export function useTerminal(options: IUseTerminalOptions = {}) {
         });
 
         setIsReady(true);
+        options.onSessionReady?.(sessionId);
       } catch (e) {
         setError(e as string);
         console.error("Failed to spawn terminal:", e);
       }
     },
-    [options.cwd]
+    [options.cwd, options.onSessionReady]
   );
 
   // Listen for PTY output

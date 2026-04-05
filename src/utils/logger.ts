@@ -1,6 +1,7 @@
 // src/utils/logger.ts
 
 import { styled, UI } from '../config/constants';
+import { getJsonMode } from './json-mode';
 
 export enum LogLevel {
   DEBUG = 'debug',
@@ -17,6 +18,8 @@ class Logger {
   }
 
   private shouldLog(level: LogLevel): boolean {
+    // In JSON mode, suppress all human-readable log output to avoid corrupting JSON
+    if (getJsonMode()) return false;
     const levels = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR];
     return levels.indexOf(level) >= levels.indexOf(this.level);
   }
@@ -46,6 +49,7 @@ class Logger {
   }
 
   success(message: string, ...args: unknown[]): void {
+    if (getJsonMode()) return;
     console.log(styled.success(`${UI.ICONS.SUCCESS} ${message}`), ...args);
   }
 

@@ -1,7 +1,6 @@
 // ui/src/components/FolderTree.tsx
 
 import { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import clsx from "clsx";
 
 interface IFileEntry {

@@ -13,11 +13,88 @@ import {
 } from "../../utils/cli-helpers";
 import { projectService } from "../../services/project.service";
 import { processService } from "../../services/process.service";
+import { serverService } from "../../services/server.service";
 
 export function registerProjectsCommand(program: Command): void {
   const projects = program
     .command("projects")
     .description("Manage code projects and commands");
+
+  // ── projects list-full (all projects with apps, commands, running status) ─
+  projects
+    .command("list-full")
+    .description("List all projects with full details")
+    .action(() => {
+      requireAuth();
+      const list = projectService.listProjects();
+      const activeProcesses = processService.listActiveProcesses();
+      const allServers = serverService.listServers();
+
+      function resolveSteps(proj: typeof list[0], steps?: typeof list[0]["commands"][0]["steps"]) {
+        if (!steps) return [];
+        return steps.map((step) => {
+          if (step.type === "app_command") {
+            const app = proj.apps.find((a) => a.id === step.app_id);
+            const cmd = app?.commands.find((c) => c.id === step.command_id);
+            return { type: "app_command", app_name: app?.name || "?", command_name: cmd?.name || "?" };
+          }
+          if (step.type === "tunnel") {
+            const srv = allServers.find((s) => s.id === step.server_id);
+            const tun = srv?.tunnels?.find((t) => t.id === step.tunnel_id);
+            return { type: "tunnel", server_name: srv?.name || "?", tunnel_name: tun?.name || "?" };
+          }
+          if (step.type === "delay") {
+            return { type: "delay", delay_ms: step.delay_ms };
+          }
+          return { type: step.type, custom_command: step.custom_command || null };
+        });
+      }
+
+      output(
+        list.map((p) => ({
+          id: p.id,
+          name: p.name,
+          base_path: p.base_path,
+          apps: p.apps.map((a) => ({
+            id: a.id,
+            name: a.name,
+            type: a.type,
+            relative_path: a.relative_path,
+            linked_server_id: a.linked_server_id || null,
+            linked_tunnel_id: a.linked_tunnel_id || null,
+            commands: a.commands.map((c) => {
+              const proc = activeProcesses.find(
+                (pr) => pr.commandId === c.id && pr.appId === a.id
+              );
+              return {
+                id: c.id,
+                name: c.name,
+                type: c.type,
+                command: c.command || null,
+                running: !!proc,
+                pid: proc?.pid ?? null,
+                started_at: proc?.startTime ?? null,
+              };
+            }),
+          })),
+          commands: p.commands.map((c) => {
+            const proc = activeProcesses.find(
+              (pr) => pr.commandId === c.id && pr.projectId === p.id
+            );
+            return {
+              id: c.id,
+              name: c.name,
+              type: c.type,
+              command: c.command || null,
+              steps: c.type === "sequence" ? resolveSteps(p, c.steps) : undefined,
+              running: !!proc,
+              pid: proc?.pid ?? null,
+              started_at: proc?.startTime ?? null,
+            };
+          }),
+        }))
+      );
+    });
 
   // ── projects list ─────────────────────────────────────────────────────────
   projects
@@ -126,10 +203,11 @@ export function registerProjectsCommand(program: Command): void {
   projects
     .command("run <project> <command>")
     .description("Run a project-level or app command")
-    .action(async (projectName: string, cmdName: string) => {
+    .option("--app <app-name>", "Specify which app the command belongs to")
+    .action(async (projectName: string, cmdName: string, opts: { app?: string }) => {
       requireAuth();
       const project = resolveProject(projectName);
-      const resolved = resolveCommand(project, cmdName);
+      const resolved = resolveCommand(project, cmdName, opts.app);
 
       let pid: number | null;
       if (resolved.isProjectLevel) {
@@ -154,7 +232,8 @@ export function registerProjectsCommand(program: Command): void {
   projects
     .command("stop <project> [command]")
     .description("Stop command(s) (all if no name given)")
-    .action(async (projectName: string, cmdName?: string) => {
+    .option("--app <app-name>", "Specify which app the command belongs to")
+    .action(async (projectName: string, cmdName: string | undefined, opts: { app?: string }) => {
       requireAuth();
       const project = resolveProject(projectName);
 
@@ -164,7 +243,7 @@ export function registerProjectsCommand(program: Command): void {
         return;
       }
 
-      const resolved = resolveCommand(project, cmdName);
+      const resolved = resolveCommand(project, cmdName, opts.app);
       const proc = processService.getCommandProcess(resolved.command.id);
       if (!proc) {
         outputError(`Command "${cmdName}" is not running`);

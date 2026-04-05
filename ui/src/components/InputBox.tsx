@@ -1,6 +1,6 @@
 // ui/src/components/InputBox.tsx
 
-import { useState, useRef, useCallback, KeyboardEvent } from "react";
+import { useState, useRef, useCallback, type KeyboardEvent } from "react";
 import clsx from "clsx";
 
 interface IInputBoxProps {

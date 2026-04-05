@@ -1,0 +1,457 @@
+.dash {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  color: #e7e9ea;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+
+.dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid #1a1a1a;
+  flex-shrink: 0;
+}
+
+.dash-logo {
+  font-size: 1rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ff69b4, #06b6d4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dash-user {
+  font-size: 0.8rem;
+  color: #71767b;
+  margin-left: auto;
+}
+
+.dash-logout {
+  margin-left: 0.5rem;
+}
+
+/* ── Body ────────────────────────────────────────────────────────────── */
+
+.dash-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+/* ── Sections ────────────────────────────────────────────────────────── */
+
+.dash-section {
+  margin-bottom: 1rem;
+}
+
+.section-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #71767b;
+  margin: 0 0 0.5rem 0.15rem;
+}
+
+/* ── Card grid ───────────────────────────────────────────────────────── */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 0.5rem;
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────── */
+
+.card {
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 10px;
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.card-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.card-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e7e9ea;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-sub {
+  font-size: 0.68rem;
+  color: #71767b;
+  font-family: ui-monospace, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Card rows container ─────────────────────────────────────────────── */
+
+.card-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+/* ── Group (visual section within a card) ────────────────────────────── */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.group + .group {
+  margin-top: 0.3rem;
+}
+
+/* ── Row (generic horizontal row) ────────────────────────────────────── */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: 5px;
+  min-height: 1.5rem;
+}
+
+.row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── Status button group (uptime + button) ───────────────────────────── */
+
+.status-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.uptime {
+  font-size: 0.58rem;
+  color: #00ba7c;
+  opacity: 0.7;
+  font-family: ui-monospace, monospace;
+  transition: opacity 0.3s;
+}
+
+.uptime-pulse {
+  animation: pulse-green 0.6s ease-out;
+}
+
+@keyframes pulse-green {
+  0% { opacity: 1; color: #4ade80; }
+  100% { opacity: 0.7; color: #00ba7c; }
+}
+
+/* ── Row action (clickable sync-file row) ────────────────────────────── */
+
+.row-action {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.35rem;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: #e7e9ea;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.12s;
+}
+
+.row-action:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.row-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.row-action.done {
+  color: #00ba7c;
+}
+
+/* ── Row parts ───────────────────────────────────────────────────────── */
+
+.ra-icon {
+  width: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  flex-shrink: 0;
+  color: #71767b;
+}
+
+.row-action.done .ra-icon {
+  color: #00ba7c;
+}
+
+.ra-text {
+  flex: 1;
+  font-size: 0.72rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ra-dim {
+  font-size: 0.62rem;
+  color: #505458;
+  flex-shrink: 0;
+}
+
+.row-text {
+  flex: 1;
+  font-size: 0.72rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-bold {
+  font-weight: 600;
+}
+
+.mono {
+  font-family: ui-monospace, monospace;
+  font-size: 0.62rem;
+  color: #505458;
+}
+
+/* ── Status dot ──────────────────────────────────────────────────────── */
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2a2a2a;
+  flex-shrink: 0;
+}
+
+.dot.on {
+  background: #00ba7c;
+  box-shadow: 0 0 5px rgba(0, 186, 124, 0.4);
+}
+
+/* ── App name ────────────────────────────────────────────────────────── */
+
+.app-name {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #e7e9ea;
+}
+
+/* ── Badges ──────────────────────────────────────────────────────────── */
+
+.badge {
+  font-size: 0.55rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #606468;
+  flex-shrink: 0;
+  text-transform: lowercase;
+}
+
+.badge-blue {
+  background: rgba(29, 155, 240, 0.08);
+  color: #1d9bf0;
+}
+
+/* ── Indentation (hierarchy) ─────────────────────────────────────────── */
+
+.indent-1 {
+  margin-left: 1rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+/* ── Sequence step rows ──────────────────────────────────────────────── */
+
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.25rem;
+}
+
+.step-line {
+  width: 8px;
+  height: 1px;
+  background: #1a1a1a;
+  flex-shrink: 0;
+}
+
+.step-icon {
+  font-size: 0.6rem;
+  color: #505458;
+  flex-shrink: 0;
+  width: 0.8rem;
+  text-align: center;
+}
+
+.step-text {
+  font-size: 0.65rem;
+  color: #71767b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+
+.btn {
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  border: none;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s;
+  flex-shrink: 0;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-white {
+  background: #e7e9ea;
+  color: #0f1419;
+}
+
+.btn-white:hover {
+  background: #d7dbdc;
+}
+
+.btn-xs {
+  padding: 0.15rem 0.45rem;
+  font-size: 0.65rem;
+}
+
+.btn-green {
+  background: rgba(0, 186, 124, 0.12);
+  color: #00ba7c;
+}
+
+.btn-green:hover {
+  background: rgba(0, 186, 124, 0.22);
+}
+
+.btn-red {
+  background: rgba(244, 33, 46, 0.12);
+  color: #f4212e;
+}
+
+.btn-red:hover {
+  background: rgba(244, 33, 46, 0.22);
+}
+
+.btn-done {
+  background: rgba(0, 186, 124, 0.12);
+  color: #00ba7c;
+}
+
+/* ── Inline terminal (PTY panels) ────────────────────────────────────── */
+
+.cmd-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.row-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.row-active {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.terminal-toggle {
+  font-size: 0.6rem;
+  color: #505458;
+  flex-shrink: 0;
+  width: 0.8rem;
+  text-align: center;
+}
+
+.inline-terminal-wrap {
+  margin-top: 0.2rem;
+  margin-bottom: 0.2rem;
+}
+
+.inline-terminal {
+  height: 250px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #0d0d0d;
+  border: 1px solid #1a1a1a;
+}
+
+.inline-terminal-hidden {
+  display: none;
+}
+
+.inline-terminal-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: #ff5555;
+}
+
+/* ── Empty states ────────────────────────────────────────────────────── */
+
+.empty {
+  font-size: 0.68rem;
+  color: #2a2a2a;
+  padding: 0.25rem 0.35rem;
+}
+
+.dash-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #71767b;
+  font-size: 0.85rem;
+}
