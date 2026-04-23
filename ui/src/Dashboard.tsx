@@ -76,6 +76,30 @@ interface Project {
 }
 
 const POLL_INTERVAL = 15_000;
+const TERMINAL_PREF_KEY = "karpi-terminal-pref";
+
+const isMac =
+  typeof navigator !== "undefined" &&
+  /Mac|iPhone|iPad/.test(navigator.platform);
+const isWindows =
+  typeof navigator !== "undefined" && navigator.platform.startsWith("Win");
+
+const TERMINAL_OPTIONS: { value: string; label: string }[] = [
+  { value: "inline", label: "Inline" },
+  ...(isMac
+    ? [
+        { value: "terminal", label: "Terminal" },
+        { value: "iterm", label: "iTerm2" },
+        { value: "warp", label: "Warp" },
+      ]
+    : []),
+  ...(isWindows
+    ? [
+        { value: "windows-terminal", label: "Windows Terminal" },
+        { value: "powershell", label: "PowerShell" },
+      ]
+    : []),
+];
 
 // ── Live uptime component (ticks every second for running processes) ─────────
 
@@ -151,6 +175,16 @@ export default function Dashboard({ username, onLogout }: { username: string; on
   const [actionStatus, setActionStatus] = useState<Record<string, string>>({});
   const [refreshPulse, setRefreshPulse] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Terminal preference (persisted in localStorage)
+  const [terminalPref, setTerminalPref] = useState(
+    () => localStorage.getItem(TERMINAL_PREF_KEY) || "inline",
+  );
+
+  function updateTerminalPref(value: string) {
+    setTerminalPref(value);
+    localStorage.setItem(TERMINAL_PREF_KEY, value);
+  }
 
   // PTY inline terminal state
   const [ptySessions, setPtySessions] = useState<Record<string, number>>({});
@@ -240,6 +274,38 @@ export default function Dashboard({ username, onLogout }: { username: string; on
 
   function isPtyRunning(key: string) {
     return ptySessions[key] != null;
+  }
+
+  async function handleSsh(key: string, cmd: string) {
+    // If an inline PTY is already running, disconnect it
+    if (isPtyRunning(key)) {
+      stopPty(key);
+      return;
+    }
+
+    if (terminalPref === "inline") {
+      startPty(key);
+    } else {
+      try {
+        const result = await invoke<string>("open_external_terminal", {
+          terminal: terminalPref,
+          command: cmd,
+        });
+        const status = result === "copied" ? "copied" : "done";
+        setActionStatus((s) => ({ ...s, [key]: status }));
+        setTimeout(
+          () => setActionStatus((s) => ({ ...s, [key]: "" })),
+          2500,
+        );
+      } catch (e) {
+        console.error("Failed to open external terminal:", e);
+        setActionStatus((s) => ({ ...s, [key]: "error" }));
+        setTimeout(
+          () => setActionStatus((s) => ({ ...s, [key]: "" })),
+          3000,
+        );
+      }
+    }
   }
 
   // ── StatusBtn (unchanged for sequence commands & tunnels) ─────────────────
@@ -335,6 +401,7 @@ export default function Dashboard({ username, onLogout }: { username: string; on
                 const sshRunning = isPtyRunning(sshKey);
                 const sshExpanded = expandedTerminals.has(sshKey);
                 const sshCmd = `ssh ${s.username}@${s.host}`;
+                const sshStatus = actionStatus[sshKey];
 
                 return (
                 <div key={s.id} className="card">
@@ -345,15 +412,44 @@ export default function Dashboard({ username, onLogout }: { username: string; on
                         {s.username}@{s.host}
                       </span>
                     </div>
-                    <button
-                      className={`btn ${sshRunning ? "btn-red" : "btn-white"}`}
-                      onClick={() => {
-                        if (sshRunning) stopPty(sshKey);
-                        else startPty(sshKey);
-                      }}
-                    >
-                      {sshRunning ? "Disconnect" : "SSH"}
-                    </button>
+                    <div className="ssh-controls">
+                      {TERMINAL_OPTIONS.length > 1 && (
+                        <select
+                          className="terminal-select"
+                          value={terminalPref}
+                          onChange={(e) => updateTerminalPref(e.target.value)}
+                        >
+                          {TERMINAL_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <button
+                        className={`btn ${
+                          sshRunning
+                            ? "btn-red"
+                            : sshStatus === "done" || sshStatus === "copied"
+                              ? "btn-done"
+                              : sshStatus === "error"
+                                ? "btn-red"
+                                : "btn-white"
+                        }`}
+                        onClick={() => handleSsh(sshKey, sshCmd)}
+                        disabled={sshStatus === "running"}
+                      >
+                        {sshRunning
+                          ? "Disconnect"
+                          : sshStatus === "copied"
+                            ? "Copied!"
+                            : sshStatus === "done"
+                              ? "Opened"
+                              : sshStatus === "error"
+                                ? "Error"
+                                : "SSH"}
+                      </button>
+                    </div>
                   </div>
 
                   {sshRunning && (

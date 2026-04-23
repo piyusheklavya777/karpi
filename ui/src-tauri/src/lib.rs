@@ -86,6 +86,7 @@ pub fn run() {
             terminal::resize_terminal,
             terminal::kill_terminal,
             terminal::list_terminals,
+            terminal::open_external_terminal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -5,7 +5,6 @@ use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
 use std::thread;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -234,4 +233,79 @@ pub fn list_terminals(app: AppHandle) -> Vec<u32> {
     let state = app.state::<TerminalState>();
     let sessions = state.sessions.lock();
     sessions.keys().cloned().collect()
+}
+
+/// Open a command in an external terminal application
+#[tauri::command]
+pub fn open_external_terminal(terminal: String, command: String) -> Result<String, String> {
+    open_external_terminal_impl(&terminal, &command)
+}
+
+#[cfg(target_os = "macos")]
+fn open_external_terminal_impl(terminal: &str, command: &str) -> Result<String, String> {
+    let escaped = command.replace('\\', "\\\\").replace('"', "\\\"");
+
+    match terminal {
+        "terminal" => {
+            std::process::Command::new("osascript")
+                .arg("-e")
+                .arg(format!(
+                    "tell application \"Terminal\"\n\tactivate\n\tdo script \"{}\"\nend tell",
+                    escaped
+                ))
+                .spawn()
+                .map_err(|e| format!("Failed to open Terminal.app: {}", e))?;
+            Ok("opened".into())
+        }
+        "iterm" => {
+            std::process::Command::new("osascript")
+                .arg("-e")
+                .arg(format!(
+                    "tell application \"iTerm2\"\n\tactivate\n\tcreate window with default profile command \"{}\"\nend tell",
+                    escaped
+                ))
+                .spawn()
+                .map_err(|e| format!("Failed to open iTerm2: {}", e))?;
+            Ok("opened".into())
+        }
+        "warp" => {
+            // Warp lacks AppleScript command support — copy to clipboard and open
+            std::process::Command::new("osascript")
+                .arg("-e")
+                .arg(format!(
+                    "set the clipboard to \"{}\"\ntell application \"Warp\" to activate",
+                    escaped
+                ))
+                .spawn()
+                .map_err(|e| format!("Failed to open Warp: {}", e))?;
+            Ok("copied".into())
+        }
+        _ => Err(format!("Unknown terminal: {}", terminal)),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn open_external_terminal_impl(terminal: &str, command: &str) -> Result<String, String> {
+    match terminal {
+        "windows-terminal" => {
+            std::process::Command::new("wt.exe")
+                .args(["--", "cmd", "/k", command])
+                .spawn()
+                .map_err(|e| format!("Failed to open Windows Terminal: {}", e))?;
+            Ok("opened".into())
+        }
+        "powershell" => {
+            std::process::Command::new("powershell")
+                .args(["-NoExit", "-Command", command])
+                .spawn()
+                .map_err(|e| format!("Failed to open PowerShell: {}", e))?;
+            Ok("opened".into())
+        }
+        _ => Err(format!("Unknown terminal: {}", terminal)),
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn open_external_terminal_impl(_terminal: &str, _command: &str) -> Result<String, String> {
+    Err("External terminals not supported on this platform".into())
 }

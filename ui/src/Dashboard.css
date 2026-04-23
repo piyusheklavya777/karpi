@@ -390,6 +390,43 @@
   color: #00ba7c;
 }
 
+/* ── SSH controls (terminal picker + SSH button) ────────────────────── */
+
+.ssh-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.terminal-select {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 999px;
+  color: #71767b;
+  font-size: 0.58rem;
+  font-family: inherit;
+  padding: 0.18rem 0.4rem;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.12s;
+}
+
+.terminal-select:hover {
+  border-color: #333;
+  color: #a0a4a8;
+}
+
+.terminal-select:focus {
+  border-color: #444;
+  color: #e7e9ea;
+}
+
+.terminal-select option {
+  background: #111;
+  color: #e7e9ea;
+}
+
 /* ── Inline terminal (PTY panels) ────────────────────────────────────── */
 
 .cmd-group {
